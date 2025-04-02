@@ -1,0 +1,17 @@
+[Unit]
+Description=Gallery
+After=graphical.target
+Requires=network.target
+
+[Service]
+Type=idle
+User=nick
+UMask=0000
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+WorkingDirectory=/home/nick/Scripts/gallery
+ExecStart=/home/nick/Scripts/gallery/web_interface.py 192.168.100.32 -u 1 -d 30 -f /home/nick/Scripts/gallery/images -mo modal-xl -ph "Nick Waterton" -K -P
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=graphical.target

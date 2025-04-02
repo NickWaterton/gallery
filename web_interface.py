@@ -352,7 +352,7 @@ class WebServer(monitor_and_display):
         '''
         screens = []
         is_on = False
-        proc = await asyncio.create_subprocess_exec('wlr-randr', stdout=asyncio.subprocess.PIPE)
+        proc = await asyncio.create_subprocess_exec('/usr/bin/wlr-randr', stdout=asyncio.subprocess.PIPE)
         # Read output and process line by line
         data = await proc.stdout.read()
         lines = data.decode().split('\n') if data else []
@@ -377,7 +377,7 @@ class WebServer(monitor_and_display):
         if any([s for s in self.screens if screen in s]):   #if our screen is one of the detected screens
             is_on = await self.get_connected_screens_status(screen) if on else False
             if (on and not is_on) or not on:
-                proc = await asyncio.create_subprocess_exec('wlr-randr', '--output', screen, '--on' if on else '--off')
+                proc = await asyncio.create_subprocess_exec('/usr/bin/wlr-randr', '--output', screen, '--on' if on else '--off')
                 # Wait for the subprocess exit.
                 await proc.wait()
         
@@ -394,7 +394,7 @@ class WebServer(monitor_and_display):
         derfaults are for the caption display, second display would be app='http://localhost:5000', pos='1420,0'
         Will not return until browser exits
         '''
-        proc = await asyncio.create_subprocess_exec('chromium-browser',
+        proc = await asyncio.create_subprocess_exec('/usr/bin/chromium-browser',
                                                     '--kiosk' if kiosk else '',
                                                     '--noerrdialogs',
                                                     '--disable-infobars',

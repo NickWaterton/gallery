@@ -231,11 +231,67 @@ You can checkout what the themes look like here https://bootswatch.com/
 
 **NOTE:** `dark` is not really a theme, when selected it just switches the caption display to white text on a black background.
 
-The font family used on the caption display can be switched form the usual sans-serif font, to a serif font using the `-sf` switch. 
+The font family used on the caption display can be switched from the usual sans-serif font, to a serif font using the `-sf` switch. 
 
 ### Shut Down
 
 Use `<cntl>C` to exit the web server, it takes a few seconds to shut down. The modal window (if any) will be removed.
+
+### Automatic Start
+
+To automatically start the server when the Pi boots, the best way is to use *systemd*. You can read all about it here https://www.thedigitalpictureframe.com/ultimate-guide-systemd-autostart-scripts-raspberry-pi/ and I have included an exaple `gallery.service` file for you to use.
+
+To use the example `gallery.service` file, first edit it to customise the `ExecStart` command line:
+```
+[Unit]
+Description=Gallery
+After=graphical.target
+Requires=network.target
+
+[Service]
+Type=idle
+User=nick
+UMask=0000
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+WorkingDirectory=/home/nick/Scripts/gallery
+ExecStart=/home/nick/Scripts/gallery/web_interface.py 192.168.100.32 -u 1 -d 30 -f /home/nick/Scripts/gallery/images -mo modal-xl -ph "Nick Waterton" -K -P
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=graphical.target
+```
+Replace the defaults with your tv IP address, the location of your images directory, and your name. Now copy the file to the `/etc/systemd/system` directory:
+```
+sudo cp gallery.service /etc/systemd/system
+sudo chmod 644 /etc/systemd/system/gallery.service
+```
+And re-initialise the systemctl daemon:
+```
+sudo systemctl daemon-reload
+```
+You can now start and stop the gallery server using the commands:
+```
+sudo systemctl start gallery.service
+sudo systemctl stop gallery.service
+sudo systemctl status gallery.service
+```
+And to see the logs:
+```
+journalctl -u gallery.service -o cat -f
+```
+
+to enable auto starting of the service on boot:
+```
+sudo systemctl enable gallery.service
+```
+And to disable it:
+```
+sudo systemctl disable gallery.service
+```
+
+if you edit the file, don't forget to run `sudo systemctl daemon-reload`.
+
 
 ## Caption Display
 
