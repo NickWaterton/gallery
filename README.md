@@ -42,8 +42,10 @@ Install the following packages (if not already installed):
 ```bash
 sudo apt install git chromium-browser
 ```
-and clone this repository (you may want to create a subdirectory first).
+and clone this repository (you may want to create a subdirectory first, such as `Scripts`, and clone into that).
 ```bash
+md Scripts
+cd Scripts
 git clone https://github.com/NickWaterton/gallery.git
 ```
 On a raspberry Pi, you need to either create a virtual environment to run the python programs in, or delete the `EXTERNALLY_MANAGED` file as described here https://learn.adafruit.com/python-virtual-environment-usage-on-raspberry-pi
@@ -55,6 +57,7 @@ sudo rm /usr/lib/python3.11/EXTERNALLY-MANAGED
 
 Now, cd to the `gallery` folder you just cloned, and use the helper scriots to set up the console display:
 ```bash
+cd Scripts/gallery
 rotate_screen_90.sh
 ```
 If you only have the once caption display, also hide the cursor:
@@ -62,7 +65,7 @@ If you only have the once caption display, also hide the cursor:
 hide_cursor.sh
 ```
 And reboot. The Pi screen should now display on the caption display in the correct orientation.  
-You can test the screen using the untility script `screen.sh`:
+You can test the screen using the utility script `screen.sh`:
 ```bash
 ./screen.sh off
 ./screen.sh on
@@ -85,18 +88,26 @@ NOOP-1 "Headless output 2"
 ```
 You may show two HDMI screens if you have two displays connected.  
 You now need to install the **samsung-tv-ws-api** package as described here https://github.com/NickWaterton/samsung-tv-ws-api/tree/master  
-Make sure you cd to your main (or sub) directory first, do **NOT** install it in the gallery folder.
+Make sure you cd to your `Scripts` directory first, do **NOT** install it in the gallery folder.
 
-Your folder should now look like this:
+```
+cd ~/Scripts
+git clone https://github.com/NickWaterton/samsung-tv-ws-api.git
+cd samsung-tv-ws-api
+sudo pip install --editable .
+```
+Don't miss the `.` after --editable`!
+
+Your Scripts folder should now look like this:
 ```
 nick@raspberrypi:~/Scripts $ ls -l
 total 8
 drwx------ 5 nick nick 4096 Apr  1 15:22 gallery
 drwxr-xr-x 9 nick nick 4096 Mar 29 15:23 samsung-tv-ws-api
 ```
+Make sure you have installed the `samsung-tv-ws-api` package without errors before proceeding.
 
 Continue with the gallery program set up as described below.
-
 
 ## Install
 
@@ -108,6 +119,16 @@ cd gallery
 pip install -r requirements.txt
 ```
 This is *after* you have installed the `samsungtvws` package as described on the above. `pip` may be `pip3` on your system.
+
+### Updating
+
+If there are update published to either the `samsung-tv-ws-api` or `gallery` package github, just change to the appropriate directory and run `git pull`:  
+```bash
+cd gallery
+git pull
+```
+
+No need to reinstall anything, unless told to do so.
 
 ## Usage
 
