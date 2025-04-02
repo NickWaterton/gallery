@@ -63,7 +63,7 @@ Now, cd to the `gallery` folder you just cloned, and use the helper scripts to s
 cd Scripts/gallery
 rotate_screen_90.sh
 ```
-If you only have the once caption display, also hide the cursor:
+If you only have the one caption display, also hide the cursor:
 ```bash
 hide_cursor.sh
 ```
