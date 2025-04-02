@@ -143,7 +143,6 @@ _development/
 uploaded_files.json
 gps_data.json
 test.py
-/*.txt
 /*.jpg
 /*.png
 
