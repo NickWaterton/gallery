@@ -216,7 +216,7 @@ Which would start the server in `kiosk` mode (modal window displays details of t
 
 On the user Interface screen, clicking or touching anywhere outside the modal display window, or the `X` in the top right hand corner will close the window, and allow you to select another imge. Just click or touch on the image button, and a new modal display window will appear. The TV and caption display will update with the new image in a few seconds.  
 
-If you are using a touch display, you may have to calibrate the touch interface. the caption display does not use a touch interface.
+If you are using a touch display, you may have to calibrate the touch interface. The caption display does not use a touch interface.
 
 ### Advanced
 
@@ -226,6 +226,8 @@ The Web interface supports *themes* selected using the `-th` option, you can sel
 ```
 Where `cyborg` is a dark theme. The theme names are one of:  
 `cerulian,cosmo,cyborg,darkly,flatly,journal,litera,lumen,lux,materia,minty,morph,pulse,quartz,sandstone,simplex,sketchy,slate,solar,spacelab,suerhero,united,vapour,yeti,zephyr,dark`
+
+You can checkout what the themes look like here https://bootswatch.com/
 
 **NOTE:** `dark` is not really a theme, when selected it just switches the caption display to white text on a black background.
 
