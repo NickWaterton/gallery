@@ -20,6 +20,7 @@ Other Pi's with single HDMI ports should work as well, in which case the caption
 
 The reccomended OS is the latest Raspeberry Pi 64 bit OS Full (including UI). You should not use the OS lite.  
 The OS should be set up to connect to WiFi (unless you are using a wired connection) with SSH enabled. 
+**Python 3.10** is required, so do not use earlier versions of Pi OS.
 
 ### Software Configuration
 
@@ -282,13 +283,13 @@ If you have created a text file to describe the image, or exif tags exist that d
 
 #### Kiosk Mode
 
-In Kiosk mode, the images will be displayed in rotation as before, but for each image displayed, the text box describing the currently displayed image will automatically appear.  
+In `Kiosk` mode, the images will be displayed in rotation as before, but for each image displayed, the text box describing the currently displayed image will automatically appear.  
 You can still close the text box, and select a new image the same way as in display mode.  
-This is the command line for Kiosk mode
+This is the command line for `Kiosk` mode
 ```
 ./web_interface.py 192.168.100.32 -u 1 -d 30 -K
 ```
-Where `192.168.100.32` is *your* TV ip address.
+Where `192.168.100.32` is *your* TV ip address, and `-K` is the option for `Kiosk` mode.
 
 ## Text Files
 
@@ -296,7 +297,7 @@ You can create text files to describe the associated image - this imformation wi
 
 ### Naming  
 
-The text file has to be given the same name as the image file, with a `.TXT` or `.txt` extension.
+The text file has to be given the same name as the image file, with a `.TXT` or `.txt` extension. See the `images` folder for examples.
 
 ### Format
 
