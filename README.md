@@ -55,7 +55,7 @@ sudo rm /usr/lib/python3.11/EXTERNALLY-MANAGED
 ```
 **NOTE:** If you don't create the virtual environment, or delete the `EXTERNALLY-MANAGED` file, `pip` will be unable to install any python packages, and you will get lots of errors.
 
-Now, cd to the `gallery` folder you just cloned, and use the helper scriots to set up the console display:
+Now, cd to the `gallery` folder you just cloned, and use the helper scripts to set up the console display:
 ```bash
 cd Scripts/gallery
 rotate_screen_90.sh
