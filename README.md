@@ -163,9 +163,14 @@ To view the web interface, open a browser and navigate to:
 ```bash
 http://<ip>:5000
 ```
-Where ip is the ip address of the system running the server (**NOT** the TV).  
+Where ip is the ip address of the system running the server (**NOT** the TV). 
+
+you should see a screen similar to this:
+![User interface](screens/user.png?raw=true "User interface")
 
 The caption display should automatically start up, and show the details of the currently displayed image. If you have a second display connected to HDMI-2, the web interface will automatically start on the second display.  
+It should look like this:  
+![Caption Display](screens/caption2.png?raw=true "Caption Display")
 
 A more typical command line would be:
 ```bash 
@@ -201,6 +206,9 @@ The caption display is optimized for a 320x1420 landscape display (so 1420 wide,
 * camera shutter speed, f-stop and ISO settings
 
 On the Waveshare 11.9" display, the maximum line legth is about 40 characters for the title (the largest font), and I reccomend that the backlight brightness be turned down (by long pressing the power on button). 
+
+It should look like this:  
+![Caption Display](screens/caption.png?raw=true "Caption Display")
 
 ## TV is off or playing
 
@@ -298,7 +306,9 @@ The mapping of the fields in the `.TXT` file to Exif tags is as follows:
 ```
 If `ImageDescription` is used for both `header` and `description` then `description` will not be displayed.
 
-**NOTE:** The *XP* tags are the tags that can be edited in Windows under `properties->details`, as "Title', "Subject", "Comments", and "Authors". Additionally "Copywrite" and "DateTimeOriginal" can be edited.
+**NOTE:** The *XP* tags are the tags that can be edited in Windows under `properties->details`, as "Title', "Subject", "Comments", and "Authors". Additionally "Copywrite" and "DateTimeOriginal" can be edited.  
+Like this:  
+![Windows Edit](screens/windows.png?raw=true "Windows Edit")
 
 This means that it is possible to edit this information on the `.jpg` files in Windows, and thus not need a `.TXT` file at all. If you are having other people submit photographs for your gallery, you should have them edit this information into the files first.
 
