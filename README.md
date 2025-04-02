@@ -4,6 +4,8 @@ This is a web front end for art display on Frame TV's, for use in Art Galleries.
 
 it is intended to be run on a Raspberry Pi, with a display connected to one (or both) HDMI outputs.
 
+**Minnimmun Python Version is 3.10**
+
 ## Raspberry Pi Configuration
 
 ### Hardware
@@ -22,7 +24,7 @@ The OS should be set up to connect to WiFi (unless you are using a wired connect
 ### Software Configuration
 
 Once the base OS has been installed, you should log in via SSH and configure as follows:  
-```bash
+```
 sudo apt update
 sudo apt full-upgrade
 sudo apt autoremove
@@ -30,20 +32,20 @@ sudo reboot
 ```
 Then log back in again.
 Now edit `/boot/firmware/cmdline.txt` (use nano) and add:
-```bash
+```
 video=HDMI-A-1:320x1480,rotate=90
 ```
 To the end of the command line. Save and exit. it should look somethig like this:
-```bash
+```
 console=serial0,115200 console=tty1 root=PARTUUID=a6e52f88-02 rootfstype=ext4 fsck.repair=yes rootwait quiet splash plymouth.ignore-serial-consoles cfg80211.ieee80211_regdom=CA video=HDMI-A-1:320x1480,rotate=90
 ```
 
 Install the following packages (if not already installed):
-```bash
+```
 sudo apt install git chromium-browser
 ```
 and clone this repository (you may want to create a subdirectory first, such as `Scripts`, and clone into that).
-```bash
+```
 md Scripts
 cd Scripts
 git clone https://github.com/NickWaterton/gallery.git
@@ -56,7 +58,7 @@ sudo rm /usr/lib/python3.11/EXTERNALLY-MANAGED
 **NOTE:** If you don't create the virtual environment, or delete the `EXTERNALLY-MANAGED` file, `pip` will be unable to install any python packages, and you will get lots of errors.
 
 Now, cd to the `gallery` folder you just cloned, and use the helper scripts to set up the console display:
-```bash
+```
 cd Scripts/gallery
 rotate_screen_90.sh
 ```
@@ -66,12 +68,12 @@ hide_cursor.sh
 ```
 And reboot. The Pi screen should now display on the caption display in the correct orientation.  
 You can test the screen using the utility script `screen.sh`:
-```bash
+```
 ./screen.sh off
 ./screen.sh on
 ```
 and the utility `wlr-randr` should display:
-```bash
+```
 nick@raspberrypi:~/Scripts $ wlr-randr
 HDMI-A-1 "HOT WaveShsare 0x00000001 (HDMI-A-1)"
   Enabled: no
@@ -96,7 +98,7 @@ git clone https://github.com/NickWaterton/samsung-tv-ws-api.git
 cd samsung-tv-ws-api
 sudo pip install --editable .
 ```
-Don't miss the `.` after --editable`!
+Don't miss the `.` after `--editable`!
 
 Your Scripts folder should now look like this:
 ```
@@ -114,7 +116,7 @@ Continue with the gallery program set up as described below.
 ### Install additional packages
 
 There are additional packages required to support the web framework, to install them, change to this directory and run:
-```bash
+```
 cd gallery
 pip install -r requirements.txt
 ```
@@ -122,8 +124,8 @@ This is *after* you have installed the `samsungtvws` package as described on the
 
 ### Updating
 
-If there are update published to either the `samsung-tv-ws-api` or `gallery` package github, just change to the appropriate directory and run `git pull`:  
-```bash
+If there are updates published to either the `samsung-tv-ws-api` or `gallery` package github, just change to the appropriate directory and run `git pull`:  
+```
 cd gallery
 git pull
 ```
@@ -135,7 +137,7 @@ No need to reinstall anything, unless told to do so.
 ### Basic
 
 The entry point is `web_interface.py`, the other files are resources used by the web interface. The command line options are:
-```bash
+```
 nick@raspberrypi:~/Scripts/gallery $ ./web_interface.py -h
 usage: web_interface.py [-h] [-p PORT] [-f FOLDER] [-m MATTE] [-t TOKEN_FILE] [-u UPDATE] [-c CHECK] [-d DISPLAY_FOR]
                         [-mo {modal-sm,modal-lg,modal-xl,modal-fullscreen,modal-fullscreen-sm-down,modal-fullscreen-md-down,modal-fullscreen-lg-down,modal-fullscreen-xl-down,modal-fullscreen-xxl-down}]
@@ -182,7 +184,7 @@ options:
 ```
 The ip address of your TV is required, the rest of the command line is optional.  
 Here is a basic example:
-```bash
+```
 ./web_interface.py 192.168.100.32 -u 1 -d 30
 ```
 Where `192.168.100.32` is *your* TV ip address.  
@@ -191,26 +193,34 @@ To view the web interface, open a browser and navigate to:
 ```bash
 http://<ip>:5000
 ```
-Where ip is the ip address of the system running the server (**NOT** the TV). 
+Where ip is the ip address of the Pi running the server (**NOT** the TV).  
 
 you should see a screen similar to this:
 ![User interface](screens/user.png?raw=true "User interface")
 
-The caption display should automatically start up, and show the details of the currently displayed image. If you have a second display connected to HDMI-2, the web interface will automatically start on the second display.  
+If you don't see a modal display window, you may have started the server in `Display` mode, not `Kiosk` mode. The Modal window only appears automatically in `Kiosk` mode.
+
+The caption display (if used) should automatically start up, and show the details of the currently displayed image. If you have a second display connected to HDMI-2, the web interface will automatically start on the second display.  
 It should look like this:  
 ![Caption Display](screens/caption2.png?raw=true "Caption Display")
 
 A more typical command line would be:
-```bash 
+```
 ./web_interface.py 192.168.100.32 -u 1 -d 30 -m modal-xl -ph "<your name>" -P -K
 ```
 Which would start the server in `kiosk` mode (modal window displays details of the current image automatically), with the modal window set to extra-large size, and server `production` mode.  
 **NOTE:** you *do* need the `"` around your name, if you have spaces in the name, ie `"Nick Waterton"`.
 
+### Touch/Mouse Interface
+
+On the user Interface screen, clicking or touching anywhere outside the modal display window, or the `X` in the top right hand corner will close the window, and allow you to select another imge. Just click or touch on the image button, and a new modal display window will appear. The TV and caption display will update with the new image in a few seconds.  
+
+If you are using a touch display, you may have to calibrate the touch interface. the caption display does not use a touch interface.
+
 ### Advanced
 
 The Web interface supports *themes* selected using the `-th` option, you can select a theme as follows:
-```bash
+```
 ./web_interface.py 192.168.100.32 -u 1 -d 30 -m modal-xl -ph "<your name>" -th cyborg -P -K
 ```
 Where `cyborg` is a dark theme. The theme names are one of:  
@@ -233,7 +243,7 @@ The caption display is optimized for a 320x1420 landscape display (so 1420 wide,
 * Camera model and lens focal length
 * camera shutter speed, f-stop and ISO settings
 
-On the Waveshare 11.9" display, the maximum line legth is about 40 characters for the title (the largest font), and I reccomend that the backlight brightness be turned down (by long pressing the power on button). 
+On the Waveshare 11.9" display, the maximum line legth is about 40 characters for the title (the largest font), and I reccomend that the backlight brightness be turned down (by long pressing the power on button several times). 
 
 It should look like this:  
 ![Caption Display](screens/caption.png?raw=true "Caption Display")
@@ -253,8 +263,8 @@ I do not reccomend exposing the web interface to the internet, this is just an e
 
 ## Typical Use
 
-This interface is intended to be used in a Gallery, so that visitors can see information on the displayed image, or select their own. Typically, you would have this running on a small computer, such as a raspery Pi, with a touch screen in Kiosk mode.  
-if you use a tablet or other device to display the user interface, and not an attached HDMI screen, you should set it up in kiosk mode:  
+This interface is intended to be used in a Gallery, so that visitors can see information on the displayed image, or select their own. Typically, you would have this running on a small computer, such as a Raspberry Pi, with a touch screen in `Kiosk` mode.  
+if you use a tablet or other device to display the user interface, and not an attached HDMI screen, you should set it up in a *kiosk mode* (**Note:** This is not the same as the `-K` `Kiosk` mode command line seting):  
 
 Examples of kiosk mode for RPI:  
 * https://www.raspberrypi.com/tutorials/how-to-use-a-raspberry-pi-in-kiosk-mode
@@ -275,7 +285,7 @@ If you have created a text file to describe the image, or exif tags exist that d
 In Kiosk mode, the images will be displayed in rotation as before, but for each image displayed, the text box describing the currently displayed image will automatically appear.  
 You can still close the text box, and select a new image the same way as in display mode.  
 This is the command line for Kiosk mode
-```bash
+```
 ./web_interface.py 192.168.100.32 -u 1 -d 30 -K
 ```
 Where `192.168.100.32` is *your* TV ip address.
@@ -322,7 +332,7 @@ If the image has embedded exif information, the `"location"` and `"time"` fields
 **NOTE:** There are rate limits on the free geolocating api, so loading large amounts of GPS info will be slow, and you should read the acceptible use policy at: https://operations.osmfoundation.org/policies/nominatim/ GPS addresses are cached locally in the file `gps_info.json` to reduce hits on the server.  
 
 The mapping of the fields in the `.TXT` file to Exif tags is as follows:
-```bash
+```
 "header"        : ImageTitle or ImageDescription or XPTitle
 "description"   : XPSubject or ImageDescription
 "details"       : UserComments or XPComment
