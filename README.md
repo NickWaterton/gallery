@@ -29,7 +29,14 @@ sudo apt autoremove
 sudo reboot
 ```
 Then log back in again.
-Now edit `/boot/firmware/cmdline.txt` (use nano) and add `video=HDMI-A-1:320x1480,rotate=90` to the end of the command line. Save and exit.
+Now edit `/boot/firmware/cmdline.txt` (use nano) and add:
+```bash
+video=HDMI-A-1:320x1480,rotate=90
+```
+To the end of the command line. Save and exit. it should look somethig like this:
+```bash
+console=serial0,115200 console=tty1 root=PARTUUID=a6e52f88-02 rootfstype=ext4 fsck.repair=yes rootwait quiet splash plymouth.ignore-serial-consoles cfg80211.ieee80211_regdom=CA video=HDMI-A-1:320x1480,rotate=90
+```
 
 Install the following packages (if not already installed):
 ```bash
@@ -37,7 +44,7 @@ sudo apt install git chromium-browser
 ```
 and clone this repository (you may want to create a subdirectory first).
 ```bash
-git clone 
+git clone https://github.com/NickWaterton/gallery.git
 ```
 On a raspberry Pi, you need to either create a virtual environment to run the python programs in, or delete the `EXTERNALLY_MANAGED` file as described here https://learn.adafruit.com/python-virtual-environment-usage-on-raspberry-pi
 If you don't care about breaking system packages:
