@@ -1,0 +1,1 @@
+chromium-browser --kiosk --noerrdialogs --disable-infobars --app="http://localhost:5000/caption" --start-fullscreen --window-position=0,0 --user-data-dir=$(mktemp -d) --enable-features=OverlayScrollbar

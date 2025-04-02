@@ -1,0 +1,8 @@
+{   
+    "header"        : "These are Trees covered in Snow",
+    "description"   : "Snowy Fir trees",
+    "details"       : "This scene shows a winter landscape with snowy trees",
+    "time"          : "Afternoon",
+    "location"      : "Ontario, Canada",
+    "photographer"  : "Unknown"
+}

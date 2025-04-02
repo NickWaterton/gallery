@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block scripts %}
+{{ super() }}
+<script type="text/javascript">
+    var theme = "{{ theme }}"
+    var serif_font = "{{ serif_font }}"
+    var wsTimer = null
+    var ws = null
+
+    window.onload = (event) => {
+        console.log("Caption Window is fully loaded theme: %s: use serif font: %s", theme, serif_font);
+        if (theme=="dark") {
+          document.body.setAttribute('class', 'bg-black text-white')
+        }
+        startWS()
+    }
+    
+    function startWS() {
+        // Create WebSocket connection.
+        console.log('Connecting Websocket')
+        ws = new WebSocket("/ws");
+        ws.onopen = (event) => {
+            clearTimeout(wsTimer)
+            console.log('%cWebsocket open', "color: green")
+        }
+        ws.onclose = (event) => {
+            console.log("%cWebsocket closed", "color: red");
+            // restart websocket connection
+            wsTimer = setTimeout(function() {
+                startWS();
+            }, 10000);
+        }
+        ws.onerror = (event) => {
+            console.log("%cWebSocket error: %s", "color: red", event);
+            ws.close()
+        }
+        // Listen for messages
+        ws.onmessage = (event) => {
+            //console.log("Message from WS ", event.data);
+            var obj = JSON.parse(event.data)
+            switch(obj.type) {
+                case 'update':
+                    console.log("got display update ", obj.name);
+                    switch(obj.name) {
+                        case 'off':
+                            updateCaption(obj.name, '')
+                            break;
+                        case 'refresh':
+                            //reload page
+                            window.open(self.location, '_self')
+                            break;
+                        default:
+                            wsSend('caption', obj.name)
+                    }
+                    break;
+                case 'caption':
+                    console.log("got caption update ", obj.name);
+                    updateCaption(obj.name, obj.data)
+                    break;
+                default:
+                    console.log('%cobject type: %s not found', "color: red", obj.type)
+            }
+        }
+    }
+    
+    function wsSend(type, name) {
+        if (ws !== null) {
+            console.log("%cWS send: type: %s name: %s", "color: blue", type, name)
+            const msg = {
+                type: type,
+                name: name,
+              };
+            ws.send(JSON.stringify(msg))
+        }
+    }
+    
+    function updateCaption(name, text) {  
+        if (name !='none') {
+            document.getElementById('caption').innerHTML=text
+            console.log("Displaying caption for: ", name);
+        }
+    }
+    
+</script>
+{% endblock %}
+{% block style %}
+{% if serif_font %}
+    body {
+      font-family: "Times New Roman", Georgia, Garamond, serif, sans-serif;
+    }
+{% endif %}
+{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="row-cols-1"> <!-- Number of columns here eg row-cols-3 -->
+    <div class="col">
+      <!-- Placeholder for caption -->
+      <div id="caption"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

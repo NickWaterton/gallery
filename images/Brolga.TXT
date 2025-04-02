@@ -1,0 +1,8 @@
+{   
+    "header"        : "Brolga",
+    "description"   : "<i>Antigone rubicunda</i>",
+    "details"       : "The <b>brolga</b>, formerly known as the native companion, is a bird in the crane family. It has also been given the name Australian crane, a term coined in 1865 by well-known ornithologist John Gould in his Birds of Australia.<br>The brolga is a common, gregarious wetland bird species of tropical and south-eastern Australia and New Guinea. It is a tall, upright bird with a small head, long beak, slender neck, and long legs. Its plumage is mainly grey, with black wing tips, and it has an orange-red band on its head. The brolga's courting dance is similar to that of other cranes. The nest is built of wetland vegetation, either on an elevated piece of land or floating on shallow water in marshland, and usually two eggs are laid. Incubation takes 32 days, and the newly hatched young are precocial. The adult diet is omnivorous and includes plant matter, invertebrates, and small vertebrates.",
+    "time"          : "",
+    "location"      : "",
+    "credit"        : "wildfoto.au"
+}

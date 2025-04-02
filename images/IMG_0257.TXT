@@ -1,0 +1,7 @@
+{   
+    "header"        : "This is snowy trees 2",
+    "description"   : "This is a scene with snowy trees 2",
+    "details"       : "This Scene shows a winter lanscape with snowy trees 2",
+    "caption"       : "Snowy Fir Trees in a Canadian Forest",
+    "photographer"  : "Unknown"
+}

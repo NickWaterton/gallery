@@ -1,0 +1,7 @@
+{   
+    "header"        : "This is snowy trees 4",
+    "description"   : "This is a scene with snowy trees 4",
+    "details"       : "This Scene shows a winter landscape with snowy trees 4",
+    "photographer"  : "Unknown"
+
+}

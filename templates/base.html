@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        {% block head %}
+        <!-- Required meta tags -->
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+        {% block styles %}
+            <!-- Bootstrap CSS -->
+            {{ bootstrap.load_css() }}
+        {% endblock %}
+        <style>
+        {% block style %}
+        <!-- extra style -->
+        {% endblock %}
+        </style>
+        <title>Wildfoto Gallery</title>
+        {% endblock %}
+    </head>
+    <body class=""> <!-- class="text-white bg-black" for white on black caption display-->
+        <!-- Your page content -->
+        {% block content %}{% endblock %}
+
+        {% block scripts %}
+            <!-- Optional JavaScript -->
+            {{ bootstrap.load_js() }}
+        {% endblock %}
+    </body>
+</html>

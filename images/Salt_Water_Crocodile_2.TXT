@@ -1,0 +1,8 @@
+{   
+    "header"        : "Saltwater crocodile",
+    "description"   : "<i>Crocodylus porosus</i>",
+    "details"       : "The <b>saltwater crocodile</b> is a crocodilian native to saltwater habitats, brackish wetlands and freshwater rivers from India's east coast across Southeast Asia and the Sundaland to northern Australia and Micronesia. It has been listed as Least Concern on the IUCN Red List since 1996. It was hunted for its skin throughout its range up to the 1970s, and is threatened by illegal killing and habitat loss. It is regarded as dangerous to humans.<br>The saltwater crocodile is the largest living reptile. Males can grow up to a weight of 1,000–1,500 kg (2,200–3,300 lb) and a length of 6 m (20 ft), rarely exceeding 6.3 m (21 ft).[6][7] Females are much smaller and rarely surpass 3 m (9.8 ft).[8][9] It is also called the estuarine crocodile, Indo-Pacific crocodile, marine crocodile, sea crocodile, and, informally, the saltie.",
+    "time"          : "",
+    "location"      : "",
+    "credit"        : "wildfoto.au"
+}

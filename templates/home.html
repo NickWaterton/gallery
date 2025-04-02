@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block scripts %}
+{{ super() }}
+<script type="text/javascript">
+    const kiosk = {{ kiosk }} //kiosk mode or not
+    var prevModal = null
+    var evtSource = null
+    var scrollTimer = null
+    var wsTimer = null
+    var ws = null
+
+    window.onload = (event) => {
+        console.log("Window is fully loaded, kiosk mode", kiosk);
+        startWS()
+    }
+    
+    window.onscroll = function (e) {  
+        // called when the window is scrolled.
+        clearTimeout(scrollTimer)
+        if (window.scrollY) {
+            scrollTimer = setTimeout(() => {scrollTop()}, 5*60000); //NOTE: period is passed in milliseconds 
+        }        
+    }
+    
+    function scrollTop() {
+        //scroll to top of page
+        if (window.scrollY) {
+            console.log('scrolling to top of page')
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
+            document.body.scrollTop = 0;            // For Safari
+        }
+    }
+    
+    function startWS() {
+        // Create WebSocket connection.
+        console.log('Connecting Websocket')
+        ws = new WebSocket("/ws");
+        ws.onopen = (event) => {
+            clearTimeout(wsTimer)
+            console.log('%cWebsocket open', "color: green")
+        }
+        ws.onclose = (event) => {
+            console.log("%cWebsocket closed", "color: red");
+            hidePrevModal(true)
+            // restart websocket connection
+            wsTimer = setTimeout(function() {
+                startWS();
+            }, 10000);
+        }
+        ws.onerror = (event) => {
+            console.log("%cWebSocket error: %s", "color: red", event);
+            ws.close()
+        }
+        // Listen for messages
+        ws.onmessage = (event) => {
+            //console.log("Message from WS ", event.data);
+            var obj = JSON.parse(event.data)
+            switch(obj.type) {
+                case 'update':
+                    console.log("got display update ", obj.name);
+                    switch(obj.name) {
+                        case 'off':
+                            hidePrevModal(true)
+                            break;
+                        case 'refresh':
+                            //reload page
+                            fetch('/').catch((error) => console.log('Fetch error: ', error))
+                            window.open(self.location, '_self')
+                            break;
+                        default:
+                            if (kiosk) {
+                                displayModal(obj.name)
+                            } else {
+                                hidePrevModal(true)
+                            }
+                    }
+                    break;
+                case 'modal':
+                    console.log("got modal update ", obj.name);
+                    renderModal(obj.name, obj.data)
+                    break;
+                default:
+                    console.log('%cobject type: %s not found', "color: red", obj.type)
+            }
+        }
+    }
+    
+    function wsSend(type, name) {
+        if (ws !== null) {
+            console.log("%cWS send: type: %s name: %s", "color: blue", type, name)
+            const msg = {
+                type: type,
+                name: name,
+              };
+            ws.send(JSON.stringify(msg))
+        }
+    }
+    
+    function renderModal(name, modal) {  
+        hidePrevModal()
+        if (name !='none') {
+            document.getElementById('modal').innerHTML=modal
+            var modalWindow = getModalWindow(name)
+            var myModal = new bootstrap.Modal(document.getElementById(modalWindow), {})
+            prevModal = myModal
+            console.log("Displaying text for: ", modalWindow);
+            myModal.show()
+        }
+    }
+        
+    function hidePrevModal(del=false) {
+        if (prevModal !== null) {
+            console.log("hiding previous modal: ", prevModal._element.id)
+            prevModal.hide()
+            if (del) {
+                prevModal = null
+            }
+        }
+    }
+    
+    function isDuplicate(name) {
+        if (prevModal !== null) {
+            if (prevModal._element.id == getModalWindow(name)) { 
+                console.log("NOT Displaying duplicate text for: ", name)
+                return true
+            }
+        }
+        return false
+    }
+    
+    function getModalWindow(name) {
+        //get textModal id from filename
+        return 'textModal-'+name.substring(0, name.lastIndexOf('.')) || name
+    }
+    
+    function showImage(name) {
+        //show modal, and trigger display on TV using ajax fetch
+        prevModal = null
+        displayModal(name);
+        console.log("%cShow Image on TV: %s", "color: green", name)
+        wsSend('display', name)
+    }
+    
+    function displayModal(name) {
+        if (!isDuplicate(name)) {
+            console.log('requesting modal for: ', name)
+            wsSend('modal', name)
+        }
+    }
+    
+</script>
+{% endblock %}
+{% block content %}
+<h5 class="pb-2 mt-4 mb-2 border-bottom text-center">Click on a Picture</h5>
+<div class="container" >
+  <div class="row row-cols-2"> <!-- Number of columns here eg row-cols-3 -->
+  {% for name in names %}
+    <div class="col">
+      <button type="button" onclick="showImage('{{name}}')" class="btn btn-primary" >
+        <img class="img-fluid img-thumbnail" src="{{ url_for('static',filename=name) }}" alt="{{ name }}" >
+      </button>
+    </div>
+  {% endfor %}
+  </div>
+</div>
+<!-- Placeholder for Modal Window -->
+<div id="modal"></div>
+{% endblock %}
