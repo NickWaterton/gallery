@@ -239,7 +239,7 @@ Use `<cntl>C` to exit the web server, it takes a few seconds to shut down. The m
 
 ### Automatic Start
 
-To automatically start the server when the Pi boots, the best way is to use *systemd*. You can read all about it here https://www.thedigitalpictureframe.com/ultimate-guide-systemd-autostart-scripts-raspberry-pi/ and I have included an exaple `gallery.service` file for you to use.
+To automatically start the server when the Pi boots, the best way is to use *systemd*. You can read all about it here https://www.thedigitalpictureframe.com/ultimate-guide-systemd-autostart-scripts-raspberry-pi/ and I have included an example `gallery.service` file for you to use.
 
 To use the example `gallery.service` file, first edit it to customise the `ExecStart` command line:
 ```
@@ -261,7 +261,7 @@ RestartSec=10
 [Install]
 WantedBy=graphical.target
 ```
-Replace the defaults with your tv IP address, the location of your images directory, and your name. Now copy the file to the `/etc/systemd/system` directory:
+Replace the defaults with your TV IP address, the location of your images directory, and your name. Now copy the file to the `/etc/systemd/system` directory:
 ```
 sudo cp gallery.service /etc/systemd/system
 sudo chmod 644 /etc/systemd/system/gallery.service
@@ -302,7 +302,7 @@ The caption display is optimized for a 320x1420 landscape display (so 1420 wide,
 * Camera model and lens focal length
 * camera shutter speed, f-stop and ISO settings
 
-On the Waveshare 11.9" display, the maximum line legth is about 40 characters for the title (the largest font), and I reccomend that the backlight brightness be turned down (by long pressing the power on button several times). 
+On the Waveshare 11.9" display, the maximum line length is about 40 characters for the title (the largest font), and I reccomend that the backlight brightness be turned down (by long pressing the power on button several times). 
 
 It should look like this:  
 ![Caption Display](screens/caption.png?raw=true "Caption Display")
