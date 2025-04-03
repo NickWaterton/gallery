@@ -27,9 +27,10 @@ It is loaded by the web_interface.py program
 
 import sys
 import logging
-import os
+from pathlib import Path
+import sys
 import io
-import random
+import random, string
 import json
 import asyncio
 import time
@@ -83,7 +84,7 @@ class PIL_methods:
         save any updates
         '''
         self.log.info('downloading My Photos thumbnails')
-        my_photos_thumbnails = await self.get_thumbnails(my_photos)
+        my_photos_thumbnails = await self.mon.get_thumbnails(my_photos)
         if my_photos_thumbnails:
             self.log.info('checking thumbnails against {} files, please wait...'.format(len(files_images)))
             self.compare_thumbnails(files_images, my_photos_thumbnails)
@@ -134,29 +135,14 @@ class PIL_methods:
         files_images = {}
         for file in files:
             try:
-                data = Image.open(os.path.join(self.folder, file))
-                format = self.mon.get_file_type(os.path.join(self.folder, file), data)
-                if not (file.lower().endswith(format) or (format=='jpeg' and file.lower().endswith('jpg'))):
+                data = Image.open(Path(self.folder, file))
+                format = self.mon.get_file_type(Path(self.folder, file), data)
+                if not (Path(file).suffix[1:].lower() == format or (format=='jpeg' and Path(file).suffix[1:].lower() == 'jpg')):
                     self.log.warning('file: {} is of type {}, the extension is wrong! please fix this'.format(file, format))
                 files_images[file] = data
             except Exception as e:
                 self.log.warning('Error loading: {}, {}'.format(file, e))
         return files_images
-        
-    async def get_thumbnails(self, content_ids):
-        '''
-        gets thumbnails from tv in list of content_ids
-        returns dictionary of content_ids and binary data
-        only used if PIL is installed
-        '''
-        thumbnails = {}
-        if content_ids:
-            if self.mon.api_version == 0:
-                thumbnails = {content_id:await self.mon.tv.get_thumbnail(content_id) for content_id in content_ids}
-            elif self.mon.api_version == 1:
-                thumbnails = {os.path.splitext(k)[0]:v for k,v in (await self.mon.tv.get_thumbnail_list(content_ids)).items()}
-        self.log.info('got {} thumbnails'.format(len(thumbnails)))
-        return thumbnails
         
     def fix_file_type(self, filename, file_type, image_data=None):
         if not all([HAVE_PIL, file_type]):
@@ -199,10 +185,10 @@ class monitor_and_display:
         self.sequential = sequential
         self.on = on
         # Autosave token to file
-        self.token_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), token_file) if token_file else token_file
+        self.token_file = Path(token_file) if token_file else token_file
         self.art_mode = art_mode
         self.art_task = None
-        self.program_data_path = './uploaded_files.json'
+        self.program_data_path = Path('./uploaded_files.json')
         self.uploaded_files = {}
         self.fav = set()
         self.api_version = 0
@@ -211,12 +197,11 @@ class monitor_and_display:
         self.current_content_id = None
         self.prev_filename = None
         self.updated = True
+        self.exit = False
         self.lock = asyncio.Lock()
+        self.timers = {}
         self.pil = PIL_methods(self)
         self.tv = SamsungTVAsyncArt(host=self.ip, port=8002, token_file=self.token_file)
-        if self.art_mode:
-            self.log.info('ensure art_mode enabled')
-            self.tv_remote = SamsungTVWSAsyncRemote(host=self.ip, port=8002, token_file=self.token_file)
         try:
             #might not work in Windows
             asyncio.get_running_loop().add_signal_handler(SIGINT, self.close)
@@ -243,16 +228,27 @@ class monitor_and_display:
                 await self.check_matte()
                 await self.select_artwork()
         await self.tv.close()
+        self.log.info('exited')
         
     def close(self):
         '''
         exit on signal
         '''
         self.log.info('SIGINT/SIGTERM received, exiting')
+        self.exit = True
         if self.art_task:
             self.art_task.cancel()
-        raise SystemExit('cancelled')
-        #os._exit(1)
+        #raise SystemExit('cancelled')
+        
+    async def wait_seconds(self, duration=1):
+        '''
+        pause for specific duration (seconds) while allowing exit
+        '''
+        name = ''.join(random.choice(string.ascii_letters) for x in range(12))
+        self.timers[name] = time.time()
+        while time.time() - self.timers[name] < duration and not self.exit:
+            await asyncio.sleep(1)
+        self.timers.pop(name)
         
     async def get_api_version(self):
         '''
@@ -305,17 +301,34 @@ class monitor_and_display:
         gets content_id list of category - either My Photos (MY-C0002) or Favourites (MY-C0004) from tv
         '''
         try:
-            result = [v['content_id'] for v in await self.tv.available(category, timeout=10)]
+            async with self.lock:
+                result = [v['content_id'] for v in await self.tv.available(category, timeout=10)]
         except AssertionError:
             self.log.warning('failed to get contents from TV')
             result = None
         return result
         
+    async def get_thumbnails(self, content_ids):
+        '''
+        gets thumbnails from tv in list of content_ids
+        returns dictionary of content_ids and binary data
+        only used if PIL is installed
+        '''
+        thumbnails = {}
+        if content_ids:
+            async with self.lock:
+                if self.api_version == 0:
+                    thumbnails = {content_id:await self.tv.get_thumbnail(content_id) for content_id in content_ids}
+                elif self.api_version == 1:
+                    thumbnails = {k.split('.')[0]:v for k,v in (await self.tv.get_thumbnail_list(content_ids)).items()}
+        self.log.info('got {} thumbnails'.format(len(thumbnails)))
+        return thumbnails
+        
     def get_folder_files(self):
         '''
         returns list of files in folder is extension matches allowed image types
         '''
-        return [f for f in os.listdir(self.folder) if os.path.isfile(os.path.join(self.folder, f)) and self.get_file_type(os.path.join(self.folder, f)) in self.allowed_ext]
+        return [f.name for f in self.folder.iterdir() if Path(self.folder, f).is_file() and self.get_file_type(Path(self.folder, f)) in self.allowed_ext]
         
     async def get_current_artwork(self):
         '''
@@ -346,11 +359,10 @@ class monitor_and_display:
         '''
         load previous settings on program start update
         '''
-        if os.path.isfile(self.program_data_path):
-            with open(self.program_data_path, 'r') as f:
-                program_data = json.load(f)
-                self.uploaded_files = program_data.get('uploaded_files', program_data)
-                self.start = program_data.get('last_update', time.time())
+        if self.program_data_path.is_file():
+            program_data = json.loads(self.program_data_path.read_text())
+            self.uploaded_files = program_data.get('uploaded_files', program_data)
+            self.start = program_data.get('last_update', time.time())
         else:
             self.uploaded_files = {}
             self.start = time.time()
@@ -360,17 +372,16 @@ class monitor_and_display:
         save current settings, including file list with content_id on tv and last updated time
         also save the last time that art was updated, for timing slideshows
         '''
-        with open(self.program_data_path, 'w') as f:
-            program_data = {'last_update': self.start, 'uploaded_files': self.uploaded_files}
-            json.dump(program_data, f, indent=2)
+        
+        program_data = {'last_update': self.start, 'uploaded_files': self.uploaded_files}
+        self.program_data_path.write_text(json.dumps(program_data, indent=2))
             
     def read_file(self, filename):
         '''
         read image file, return file binary data and file type
         '''
         try:
-            with open(filename, 'rb') as f:
-                file_data = f.read()
+            file_data = Path(filename).read_bytes()
             file_type = self.get_file_type(filename)
             return file_data, file_type
         except Exception as e:
@@ -384,7 +395,7 @@ class monitor_and_display:
         fix the file type if it's wrong
         '''
         try:
-            file_type = os.path.splitext(filename)[1][1:].lower()
+            file_type = Path(filename).suffix[1:].lower()
             file_type = file_type.lower() if file_type else None
             if file_type in self.allowed_ext:
                 file_type = self.pil.fix_file_type(filename, file_type, image_data)
@@ -407,11 +418,12 @@ class monitor_and_display:
         upload files in list to tv
         '''
         for filename in filenames:
-            path = os.path.join(self.folder, filename)
+            path = Path(self.folder, filename)
             file_data, file_type = self.read_file(path)
             if file_data and self.tv.art_mode:
                 self.log.info('uploading : {} to tv'.format(filename))
-                self.update_uploaded_files(filename, await self.tv.upload(file_data, file_type=file_type, matte=self.matte, portrait_matte=self.matte))
+                async with self.lock:
+                    self.update_uploaded_files(filename, await self.tv.upload(file_data, file_type=file_type, matte=self.matte, portrait_matte=self.matte, timeout=20))
                 if self.uploaded_files.get(filename, {}).get('content_id'):
                     self.log.info('uploaded : {} to tv as {}'.format(filename, self.uploaded_files[filename]['content_id']))
                 else:
@@ -423,15 +435,16 @@ class monitor_and_display:
         remove files from tv if tv is in art mode
         '''
         if self.tv.art_mode:
-            self.log.info('removing files from tv : {}'.format(content_ids))
-            await self.tv.delete_list(content_ids)
-            await self.sync_file_list()
+            async with self.lock:
+                self.log.info('removing files from tv : {}'.format(content_ids))
+                await self.tv.delete_list(content_ids)
+                await self.sync_file_list()
 
     def get_last_updated(self, filename):
         '''
         get last updated timestamp for file
         '''
-        return os.path.getmtime(os.path.join(self.folder, filename))
+        return Path(self.folder, filename).stat().st_mtime
         
     async def remove_files(self, files):
         '''
@@ -475,7 +488,7 @@ class monitor_and_display:
             
     async def wait_for_files(self, files):
         #wait for files to arrive
-        await asyncio.sleep(min(10, 5 * len(files)))
+        await self.wait_seconds(min(10, 5 * len(files)))
             
     async def update_art_timer(self):
         '''
@@ -546,7 +559,7 @@ class monitor_and_display:
         '''
         async generator that yields changed filename or 'off'
         '''
-        while True:
+        while not self.exit:
             if self.updated:
                 self.updated = False
                 self.prev_filename = None
@@ -558,6 +571,7 @@ class monitor_and_display:
                     self.log.info('returning: {}'.format(filename))
                     yield filename
             await asyncio.sleep(1)
+        yield 'off'
             
     async def get_current_filename(self, direct=False):
         '''
@@ -571,7 +585,7 @@ class monitor_and_display:
                     if direct:
                         self.prev_filename = filename
                     return filename
-            await asyncio.sleep(10)
+            await self.wait_seconds(10)
         return 'off'
         
     async def tv_in_artmode(self):
@@ -579,7 +593,9 @@ class monitor_and_display:
         is TV on, and in art mode
         '''
         try:
-            return await self.tv.in_artmode()
+            async with self.lock:
+                if not self.exit:
+                    return await self.tv.in_artmode()
         except AssertionError as e:
             self.log.warning('AssertionError error: {} returning: {}'.format(e, self.tv.art_mode))
         return self.tv.art_mode
@@ -588,15 +604,20 @@ class monitor_and_display:
         '''
         Keep TV in art_mode, (ie not playing) unless TV is off
         '''
-        while True:
+        self.log.info('ensure art_mode enabled')
+        self.tv_remote = SamsungTVWSAsyncRemote(host=self.ip, port=8002, token_file=self.token_file)
+        while not self.exit:
             try:
-                if await self.tv.on():
-                    if await self.tv.get_artmode() != 'on':
-                        #send KEY_POWER
-                        await self.tv_remote.send_command(SendRemoteKey.click("KEY_POWER"))
+                async with self.lock:
+                    if await self.tv.on():
+                        if await self.tv.get_artmode() != 'on':
+                            #send KEY_POWER
+                            self.log.warning('TV is playing, sending KEY_POWER')
+                            await self.tv_remote.send_command(SendRemoteKey.click("KEY_POWER"))
             except AssertionError as e:
-                pass
-            await asyncio.sleep(15)
+                self.log.warning('AssertionError')
+            await self.wait_seconds(15)
+        await self.tv_remote.close()
     
     async def check_dir(self):
         '''
@@ -629,11 +650,11 @@ class monitor_and_display:
         initialize, check directory for changed files and update
         '''
         await self.initialize()
-        while True:
+        while not self.exit:
             await self.check_dir()
             if self.period == 0:
                 break
-            await asyncio.sleep(self.period)
+            await self.wait_seconds(self.period)
             
 async def main():
     global log
@@ -644,4 +665,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        os._exit(1)
+        sys.exit()

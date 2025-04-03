@@ -9,6 +9,7 @@
 # V 1.1.1 18/3/25 NW updated to load modal dialog on demand
 # V 1.2.0 19/3/25 NW switched from flask to quart for async features, refactor as class
 # V 2.0.0 28/3/25 NW New version with seperate caption display
+# V 2.0.1 3/4/25  NW Minor fixes
 
 import quart_flask_patch
 import asyncio
@@ -16,7 +17,7 @@ from quart import Quart, render_template, make_response, current_app, websocket
 from flask_bootstrap import Bootstrap5
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import argparse, os
+import argparse, sys
 import logging
 from signal import SIGTERM, SIGINT
 from hypercorn.config import Config
@@ -25,7 +26,7 @@ from hypercorn.asyncio import serve
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 
-__version__ = '2.0.0'
+__version__ = '2.0.1'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -217,7 +218,8 @@ class WebServer(monitor_and_display):
             for screen in self.screens:
                 await self.caption_screen_control(data['name']!='off', screen=screen.split(' ')[0])
             for websoc in self.connected:
-                self.log.info('WS({}): will be skipping: {}'.format(websoc.id, websoc.skip))
+                if websoc.skip:
+                    self.log.info('WS({}): will be skipping: {}'.format(websoc.id, websoc.skip))
                 if data['name'] in websoc.skip:         #skip if image was previously requested, as modal is already displayed
                     self.log.info('WS({}): Not sending {} as image was previously selected'.format(websoc.id, data['name']))
                     websoc.skip.discard(data['name'])
@@ -511,14 +513,19 @@ async def main():
                         force=True,
                         level=logging.DEBUG if args.debug else logging.INFO)
     log = logging.getLogger('Main')
-    log.info('Program Started, version: {}'.format(__version__))
+    log.info('Program {} Started, version: {}'.format(__file__, __version__))
+    log.info("Python Version: {}".format(sys.version.replace('\n','')))
     log.debug('Debug mode')
+    
+    if sys.version_info < (3, 10):
+        log.critical('Python version must be 3.10 or higher - exiting')
+        sys.exit(1)
     
     args.folder = Path(args.folder)
     
-    if not os.path.exists(args.folder):
+    if not args.folder.is_dir():
         log.warning('folder {} does not exist, exiting'.format(args.folder))
-        os._exit(1)
+        sys.exit(1)
         
     if args.kiosk:
         log.info("Running in Kiosk mode")
@@ -554,5 +561,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        os._exit(1)    
+        sys.exit()    
 
