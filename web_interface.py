@@ -326,6 +326,7 @@ class WebServer(monitor_and_display):
         '''
         self.log.info('loading thumnail page')
         image_names = self.get_folder_files()
+        #modified_files = [f for f in image_names if f in self.uploaded_files.keys() and self.uploaded_files[f].get('modified') != self.get_last_updated(f)]
         self.exif.get_files(image_names)
         self.log.info('displaying Buttons for: {}'.format(image_names))
         return await render_template('home.html', names=image_names, kiosk=str(self.kiosk).lower())

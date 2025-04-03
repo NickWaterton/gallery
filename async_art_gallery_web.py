@@ -438,7 +438,7 @@ class monitor_and_display:
             async with self.lock:
                 self.log.info('removing files from tv : {}'.format(content_ids))
                 await self.tv.delete_list(content_ids)
-                await self.sync_file_list()
+            await self.sync_file_list()
 
     def get_last_updated(self, filename):
         '''
