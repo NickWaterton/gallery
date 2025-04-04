@@ -198,6 +198,7 @@ class monitor_and_display:
         self.prev_filename = None
         self.updated = True
         self.exit = False
+        self.busy = False
         self.lock = asyncio.Lock()
         self.timers = {}
         self.modified_files = set()
@@ -214,6 +215,7 @@ class monitor_and_display:
         '''
         program entry point
         '''
+        self.busy = True
         if self.on and not await self.tv.on():
             self.log.info('TV is off, exiting')
         else:
@@ -230,12 +232,13 @@ class monitor_and_display:
                 await self.select_artwork()
         await self.tv.close()
         self.log.info('exited')
+        self.busy = False
         
     def close(self):
         '''
         exit on signal
         '''
-        self.log.info('SIGINT/SIGTERM received, exiting')
+        self.log.info('SIGINT/SIGTERM received, exiting, please wait for tasks to complete...')
         self.exit = True
         if self.art_task:
             self.art_task.cancel()

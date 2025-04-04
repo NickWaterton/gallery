@@ -179,7 +179,7 @@ class WebServer(monitor_and_display):
         just loop until self.exit is set
         This should trigger the server shutdown
         '''
-        while not self.exit:
+        while not self.exit or self.busy:
             await asyncio.sleep(1)
         self.log.info('shutdown initiated')
 
