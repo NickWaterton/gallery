@@ -89,7 +89,7 @@ class ExifData:
         so that we can extract 'DateTimeOriginal' and 'GPSInfo'later
         NOTE: have to use _getexif() getexif() is different
         '''
-        if HAVE_PIL: #and file not in self.exif.keys():
+        if HAVE_PIL and file not in self.exif.keys():
             self.log.info('{}: getting exif data'.format(file))
             img = Image.open(os.path.join(self.folder, file))
             self.exif[file]={self.tag_name(tag): self.conv_bytes(tag, value) for tag, value in (img._getexif() or {}).items() if self.tag_name(tag) not in self.ignore}
