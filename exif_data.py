@@ -4,7 +4,8 @@
 # and optionally geopy (pip install geopy) for location
 
 import asyncio
-import os, json
+import json
+from pathlib import Path
 from pprint import pprint, pformat
 from datetime import datetime
 HAVE_PIL = False
@@ -25,7 +26,7 @@ except ImportError:
     pass
 import logging
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -39,46 +40,58 @@ class ExifData:
     ignore = ['59932', 'MakerNote', '59933']    #proprietory tags to ignore
     additional_tags = {42038: 'ImageTitle'}     #additional tags to add
     
-    def __init__(self, folder, ip=None):
+    def __init__(self, folder, ip=None, parent=None):
                            
         self.log = logging.getLogger('Main.'+__class__.__name__)
         self.debug = self.log.getEffectiveLevel() <= logging.DEBUG
         self.folder = folder
         self.ip = ip
+        self.parent = parent
         self.exif = {}
         TAGS.update(self.additional_tags)
         self.gps_task = None
-        self.filename = './gps_data.json'
+        self.filename = Path('./gps_data.json')
         self.get_files()
-
-    def get_files(self, image_names=None):
+        
+    def get_folder_files(self):
         '''
         make list from files in static folder
         '''
+        if self.parent:
+            return self.parent.get_folder_files()
+        return [img.name for img in self.folder.iterdir() if not img.name.upper().endswith('.TXT')]
+
+    def get_files(self, image_names=None):
+        '''
+        Update exif data for files in image_names
+        '''
         if HAVE_PIL and self.folder:
-            if not image_names:
-                image_names = [img for img in os.listdir(self.folder) if not img.upper().endswith('.TXT')]
+            if image_names is None:
+                image_names = self.get_folder_files()
             for file in image_names:
                 self.update_exif_dict(file)
             #run as task because of rate limiting
             if not self.gps_task or self.gps_task.done():
-                self.gps_task = asyncio.create_task(self.update_addresses(image_names))
+                self.gps_task = asyncio.create_task(self.update_addresses(image_names.copy()))
                 
-    def load_data(self):
+    def load_gps_data(self):
+        '''
+        cache GPS info
+        '''
         try:
-            with open(self.filename, 'r') as f:
-                data = json.load(f)
-                [self.exif[file].update(data[file]) for file in self.exif.keys() if data.get(file)]
+            data = json.loads(self.filename.read_text())
+            [self.exif[file].update(data[file]) for file in self.exif.keys() if data.get(file)]
         except Exception:
             pass
             
-    def save_data(self):
+    def save_gps_data(self):
+        '''
+        load cached gps info
+        '''
         try:
-            with open(self.filename, 'w') as f:
-                data = {file:{k:v} for file in self.exif.keys() for k, v in self.exif[file].items() if k ==  'GEOPY_Address'}
-                self.log.debug('SAVE:\r\n{}'.format(pformat(data)))
-                if data:
-                    json.dump(data, f, indent=2)
+            data = {file:{k:v} for file in self.exif.keys() for k, v in self.exif[file].items() if k ==  'GEOPY_Address'}
+            if data:
+                self.filename.write_text(json.dumps(data, indent=2))
         except Exception as e:
             pass
         
@@ -86,16 +99,19 @@ class ExifData:
         '''
         only available if PIL is installed (pip install Pillow)
         get exif tags from image file and update self.exif
-        so that we can extract 'DateTimeOriginal' and 'GPSInfo'later
+        so that we can extract 'DateTimeOriginal' and 'GPSInfo' and other info later
         NOTE: have to use _getexif() getexif() is different
         '''
-        if HAVE_PIL and file not in self.exif.keys():
+        if HAVE_PIL: # and file not in self.exif.keys():
             self.log.info('{}: getting exif data'.format(file))
-            img = Image.open(os.path.join(self.folder, file))
+            img = Image.open(Path(self.folder, file))
             self.exif[file]={self.tag_name(tag): self.conv_bytes(tag, value) for tag, value in (img._getexif() or {}).items() if self.tag_name(tag) not in self.ignore}
             self.log.debug('{}: exif tags:\r\n{}'.format(file, pformat(self.exif.get(file))))
                 
     def conv_bytes(self, tag, value):
+        '''
+        decode exif values if bytes
+        '''
         tagname = self.tag_name(tag)
         try:
             return value.decode(self.decode.get(tagname, 'UTF-8')) if isinstance(value, bytes) else value
@@ -107,6 +123,10 @@ class ExifData:
         return TAGS.get(tag, str(tag))
         
     def get_key(self, file, key):
+        '''
+        find key or list of keys in exif dictionary for file name and return value
+        return None if not found
+        '''
         if isinstance(key, (tuple, list)):
             return self.get_keys(file, key)
         value = self.exif.get(file, {}).get(key)
@@ -117,6 +137,9 @@ class ExifData:
         return value
         
     def get_keys(self, file, keys=[]):
+        '''
+        called by get_key for list of keys
+        '''
         for key in keys:
             value = self.get_key(file, key)
             if value:
@@ -124,6 +147,9 @@ class ExifData:
         return None
 
     def convert_rational(self, value):
+        '''
+        convert exif rational numbers to float
+        '''
         if isinstance(value, tuple):
             return float(value[0]/value[1]) if value[1] != 0 else 0
         return value
@@ -158,7 +184,7 @@ class ExifData:
         see https://operations.osmfoundation.org/policies/nominatim/
         '''
         if HAVE_GEOPY:
-            self.load_data()
+            self.load_gps_data()
             async with Nominatim(user_agent="{}-SamsungtvwsGetLocGallery".format(self.ip or ''), timeout=20, adapter_factory=AioHTTPAdapter) as geolocator:
                 reverse  = AsyncRateLimiter(geolocator.reverse, min_delay_seconds=1.5, max_retries=1, swallow_exceptions=False)
                 for file in file_list:
@@ -176,12 +202,11 @@ class ExifData:
                             continue
                         self.log.info('{}: NO address found'.format(file))
                         self.exif[file]['GEOPY_Address'] = None
-            self.save_data()
+            self.save_gps_data()
            
     def format_address(self, file, locname):
         '''
         format address so it fits in modal footer
-        'display_name': 'Greenwood Point Road, Muskoka Lakes Township, District Municipality of Muskoka, Muskoka District, Central Ontario, Ontario, Canada', 'address': {'road': 'Greenwood Point Road', 'city': 'Muskoka Lakes Township', 'municipality': 'District Municipality of Muskoka', 'county': 'Muskoka District', 'state_district': 'Central Ontario', 'state': 'Ontario', 'ISO3166-2-lvl4': 'CA-ON', 'country': 'Canada', 'country_code': 'ca'}
         '''
         address = None
         if locname:
@@ -198,6 +223,9 @@ class ExifData:
         return address
         
     def get_dict_keys(self, d, keys=[]):
+        '''
+        called by format_address to find value for list of keys in locanme
+        '''
         for key in keys:
             if key in d.keys():
                 return d[key]

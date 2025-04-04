@@ -10,6 +10,7 @@
 # V 1.2.0 19/3/25 NW switched from flask to quart for async features, refactor as class
 # V 2.0.0 28/3/25 NW New version with seperate caption display
 # V 2.0.1 3/4/25  NW Minor fixes
+# V 2.0.2 4/4/25  NW Fix exif loading
 
 import quart_flask_patch
 import asyncio
@@ -26,7 +27,7 @@ from hypercorn.asyncio import serve
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 
-__version__ = '2.0.1'
+__version__ = '2.0.2'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -110,7 +111,7 @@ class WebServer(monitor_and_display):
         self.text = {}
         self.screens = []
         self.add_signals()
-        self.exif = ExifData(folder if exif else None, ip)
+        self.exif = ExifData(folder if exif else None, ip, self)
         self.app = Quart(__name__, static_folder=folder)
         self.bootstrap = Bootstrap5(self.app)
         if self.theme != 'dark':    #dark is not an actual theme, but a manual setting
@@ -326,8 +327,7 @@ class WebServer(monitor_and_display):
         '''
         self.log.info('loading thumnail page')
         image_names = self.get_folder_files()
-        #modified_files = [f for f in image_names if f in self.uploaded_files.keys() and self.uploaded_files[f].get('modified') != self.get_last_updated(f)]
-        self.exif.get_files(image_names)
+        self.exif.get_files(self.get_modified_files())
         self.log.info('displaying Buttons for: {}'.format(image_names))
         return await render_template('home.html', names=image_names, kiosk=str(self.kiosk).lower())
         
@@ -427,10 +427,9 @@ class WebServer(monitor_and_display):
         try:
             ts = self.get_last_updated(text_file)
             if self.text.get(file,{}).get('timestamp') != ts:
-                with open(text_file, 'r') as f:
-                    text = self.app.json.load(f)
-                    text['timestamp'] = ts
-                    self.text[file] = text
+                text = self.app.json.loads(text_file.read_text())
+                text['timestamp'] = ts
+                self.text[file] = text
             else:
                 text = self.text.get(file,{})
             self.log.debug('got text for image: {}: {}'.format(file, text))

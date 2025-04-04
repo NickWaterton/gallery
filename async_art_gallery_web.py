@@ -83,7 +83,7 @@ class PIL_methods:
         download thumbnails from my_photos to compare with file data
         save any updates
         '''
-        self.log.info('downloading My Photos thumbnails')
+        self.log.info('downloading My Photos thumbnails, please wait...')
         my_photos_thumbnails = await self.mon.get_thumbnails(my_photos)
         if my_photos_thumbnails:
             self.log.info('checking thumbnails against {} files, please wait...'.format(len(files_images)))
@@ -200,6 +200,7 @@ class monitor_and_display:
         self.exit = False
         self.lock = asyncio.Lock()
         self.timers = {}
+        self.modified_files = set()
         self.pil = PIL_methods(self)
         self.tv = SamsungTVAsyncArt(host=self.ip, port=8002, token_file=self.token_file)
         try:
@@ -462,6 +463,7 @@ class monitor_and_display:
         if new files found, upload to tv
         '''
         new_files = [f for f in files if f not in self.uploaded_files.keys()]
+        self.modified_files.update(new_files)
         #upload new files
         if new_files:
             self.log.info('adding files to tv : {}'.format(new_files))
@@ -476,6 +478,7 @@ class monitor_and_display:
         if so, delete old content on tv and upload new
         '''
         modified_files = [f for f in files if f in self.uploaded_files.keys() and self.uploaded_files[f].get('modified') != self.get_last_updated(f)]
+        self.modified_files.update(modified_files)
         #delete old file and upload new:
         if modified_files:
             self.log.info('updating files on tv : {}'.format(modified_files))
@@ -489,6 +492,15 @@ class monitor_and_display:
     async def wait_for_files(self, files):
         #wait for files to arrive
         await self.wait_seconds(min(10, 5 * len(files)))
+        
+    def get_modified_files(self):
+        '''
+        return copy of modified files and delete orgiginal
+        '''
+        modified_files = self.modified_files.copy()
+        self.modified_files = set()
+        self.log.debug('returning modified files: {}'.format(modified_files))
+        return modified_files
             
     async def update_art_timer(self):
         '''
