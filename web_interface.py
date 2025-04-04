@@ -66,37 +66,37 @@ class WebServer(monitor_and_display):
     
     macro = {'modal': 'render_modal', 'caption': 'render_caption'}
     
-    def __init__(self, ip,
-                       folder,
-                       period=5,
-                       update_time=1440,
-                       display_for=120,
-                       include_fav=False,
-                       sync=True,
-                       matte='none',
-                       sequential=False,
-                       on=False,
-                       token_file=None,
-                       art_mode = False,
-                       port=5000,
-                       modal_size = '',
-                       photographer = None,
-                       theme = None,
-                       serif_font = False,
-                       exif = True,
-                       kiosk=False):
-        super().__init__(   ip,
-                            folder,
-                            period          = period,
-                            update_time     = update_time,
-                            display_for     = display_for,
-                            include_fav     = include_fav,
-                            sync            = sync,
-                            matte           = matte,
-                            sequential      = sequential,
-                            on              = on,
-                            token_file      = token_file,
-                            art_mode        = art_mode)
+    def __init__(self,     ip,
+                           folder,
+                           period=5,
+                           update_time=1440,
+                           display_for=120,
+                           include_fav=False,
+                           sync=True,
+                           matte='none',
+                           sequential=False,
+                           on=False,
+                           token_file=None,
+                           art_mode = False,
+                           port=5000,
+                           modal_size = '',
+                           photographer = None,
+                           theme = None,
+                           serif_font = False,
+                           exif = True,
+                           kiosk=False):
+        super().__init__(  ip,
+                           folder,
+                           period          = period,
+                           update_time     = update_time,
+                           display_for     = display_for,
+                           include_fav     = include_fav,
+                           sync            = sync,
+                           matte           = matte,
+                           sequential      = sequential,
+                           on              = on,
+                           token_file      = token_file,
+                           art_mode        = art_mode)
         self.log = logging.getLogger('Main.'+__class__.__name__)
         self.debug = self.log.getEffectiveLevel() <= logging.DEBUG
         self.host = '0.0.0.0'   #allow connection from any computer
@@ -110,6 +110,7 @@ class WebServer(monitor_and_display):
         self.exit = False
         self.text = {}
         self.screens = []
+        self.ws_id = 0
         self.add_signals()
         self.exif = ExifData(folder if exif else None, ip, self)
         self.app = Quart(__name__, static_folder=folder)
@@ -212,7 +213,7 @@ class WebServer(monitor_and_display):
         broadcast filename changes to all websockets connected
         '''
         data={'type':'update'}
-        filename = self.filename_changed()           #filename generator
+        filename = self.filename_changed()              #filename generator
         while not self.exit:
             #stream filename changes on TV to web page
             data['name'] = await anext(filename)        #blocks until next filename is available
@@ -229,7 +230,7 @@ class WebServer(monitor_and_display):
         
     async def ws_process(self, data):
         '''
-        process and respond to websocket data
+        process and respond to websocket data request
         '''
         websoc = self.get_ws()
         self.log.info('WS({}): received from ws: {}'.format(websoc.id, data))
@@ -262,6 +263,9 @@ class WebServer(monitor_and_display):
                 self.log.info('No match for data type: {]'.format(data['type']))
                 
     async def get_window_data(self, name, type='modal'):
+        '''
+        get html to send to caption or modal windows using macro filled in from text data
+        '''
         text = self.get_text(name, type=type)
         send_data = {'type':type, 'name': 'none'}
         if text:
@@ -291,10 +295,11 @@ class WebServer(monitor_and_display):
         start websocket
         '''
         try:
+            self.ws_id += 1
             websoc = self.get_ws()
             self.connected.add(websoc)
             websoc.skip = set()
-            websoc.id = len(self.connected)
+            websoc.id = self.ws_id
             self.log.info('{} websocket connected'.format(len(self.connected)))
             await self.ws_process({'type': 'refresh'})  #send 'refresh' to update display on first connection
             producer = asyncio.create_task(self.sending())
@@ -408,45 +413,56 @@ class WebServer(monitor_and_display):
                                                     '--enable-features=OverlayScrollbar',
                                                     stderr=asyncio.subprocess.DEVNULL)
         # Wait for the subprocess exit.
-        await proc.wait()
+        proc.wait()
+        
+    def get_text_file_name(self, file):
+        '''
+        find text file name from image file name
+        case insensitive
+        '''
+        text_file = Path(file).with_suffix(".TXT")
+        for file in Path(self.app.static_folder).iterdir():
+            if file.name.upper() == text_file.name.upper():
+                return file
+        return None
         
     def get_text(self, file, type='modal'):
         '''
-        takes a image file name, changes the extension to TXT (also tries txt).
-        if data does not already exist in self.txt and file has not been updated, reads the file from the static folder
-        and returns a dictionary of the json.
+        takes an image file name, finds corresponding text file.
+        if data does not already exist in self.text and file has not been updated, reads the file from the static folder
+        as a dictionary of the json.
         returns None if file not found, or json is invalid and data not in the image exif data
         returns caption data or modal data built from the text or exif data
         '''
         #default info
         data = {"id": Path(file).with_suffix(""), "name": file}
         text = {}
-        text_file = Path(self.app.static_folder, Path(file).with_suffix(".TXT"))
-        if not text_file.is_file():
-            text_file = Path(text_file).with_suffix(".txt")
-        try:
-            ts = self.get_last_updated(text_file)
-            if self.text.get(file,{}).get('timestamp') != ts:
-                text = self.app.json.loads(text_file.read_text())
-                text['timestamp'] = ts
-                self.text[file] = text
-            else:
-                text = self.text.get(file,{})
-            self.log.debug('got text for image: {}: {}'.format(file, text))
-        except FileNotFoundError:
-            pass
-        except Exception as e:
-            self.log.warning('error: {}: {}'.format(e, text_file))
+        text_file = self.get_text_file_name(file)
+        if text_file:
+            try:
+                ts = self.get_last_updated(text_file)
+                if self.text.get(file,{}).get('timestamp') != ts:
+                    self.log.info('reading text file: {}'.format(text_file.name))
+                    text = self.app.json.loads(text_file.read_text())
+                    text['timestamp'] = ts
+                    self.text[file] = text
+                else:
+                    text = self.text.get(file,{})
+                self.log.debug('got text for image: {}: {}'.format(file, text))
+            except FileNotFoundError:
+                pass
+            except Exception as e:
+                self.log.warning('error: {}: {}'.format(e, text_file))
         #Python 3.10 onwards only!
         match type:
             case 'modal':
                 text = self.get_modal_from_exif(file, text)
             case 'caption':
                 text = self.get_caption_from_exif(file, text)
-        if not text:
-            return None
-        data.update(text)
-        return data
+        if text:
+            data.update(text)
+            return data
+        return None
             
     def get_modal_from_exif(self, file, text):
         '''
