@@ -137,7 +137,6 @@ class WebServer(monitor_and_display):
         '''
         start everything up in either development or production environment
         '''
-        asyncio.create_task(self.shutdown_trigger())
         await self.initialize_screens()
         if production:
             self.log.info('PRODUCTION Mode')
@@ -413,7 +412,7 @@ class WebServer(monitor_and_display):
                                                     '--enable-features=OverlayScrollbar',
                                                     stderr=asyncio.subprocess.DEVNULL)
         # Wait for the subprocess exit.
-        proc.wait()
+        await proc.wait()
         
     def get_text_file_name(self, file):
         '''
