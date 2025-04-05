@@ -332,7 +332,7 @@ class monitor_and_display:
         '''
         returns list of files in folder is extension matches allowed image types
         '''
-        return [f.name for f in self.folder.iterdir() if Path(self.folder, f).is_file() and self.get_file_type(Path(self.folder, f)) in self.allowed_ext]
+        return [f.name for f in self.folder.iterdir() if f.is_file() and self.get_file_type(f) in self.allowed_ext]
         
     async def get_current_artwork(self):
         '''
