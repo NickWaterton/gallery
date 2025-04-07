@@ -65,7 +65,15 @@
                             break;
                         case 'refresh':
                             //reload page
-                            fetch('/').catch((error) => console.log('Fetch error: ', error))
+                            console.log('refreshing page')
+                            fetch('/')
+                            .then(res => res.text())
+                            .then(text => {
+                                //hidePrevModal(true)
+                                //document.body.innerHTML = text
+                                //wsSend('refresh', null)
+                            })
+                            .catch((error) => console.log('Fetch error: ', error))
                             window.open(self.location, '_self')
                             break;
                         default:
@@ -135,7 +143,7 @@
     }
     
     function showImage(name) {
-        //show modal, and trigger display on TV using ajax fetch
+        //show modal, and trigger display on TV using websocket
         prevModal = null
         displayModal(name);
         console.log("%cShow Image on TV: %s", "color: green", name)

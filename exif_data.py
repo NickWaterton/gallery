@@ -44,7 +44,7 @@ class ExifData:
                            
         self.log = logging.getLogger('Main.'+__class__.__name__)
         self.debug = self.log.getEffectiveLevel() <= logging.DEBUG
-        self.folder = folder
+        self.folder = Path(folder)
         self.ip = ip
         self.parent = parent
         self.exif = {}
@@ -58,8 +58,8 @@ class ExifData:
         make list from files in static folder
         '''
         if self.parent:
-            return self.parent.get_folder_files()
-        return [img.name for img in self.folder.iterdir() if not img.name.upper().endswith('.TXT')]
+            return self.parent.get_folder_files(True)
+        return [img for img in self.folder.iterdir() if not img.name.upper().endswith('.TXT')]
 
     def get_files(self, image_names=None):
         '''
@@ -103,10 +103,10 @@ class ExifData:
         NOTE: have to use _getexif() getexif() is different
         '''
         if HAVE_PIL: # and file not in self.exif.keys():
-            self.log.info('{}: getting exif data'.format(file))
-            img = Image.open(Path(self.folder, file))
-            self.exif[file]={self.tag_name(tag): self.conv_bytes(tag, value) for tag, value in (img._getexif() or {}).items() if self.tag_name(tag) not in self.ignore}
-            self.log.debug('{}: exif tags:\r\n{}'.format(file, pformat(self.exif.get(file))))
+            self.log.info('{}: getting exif data'.format(file.name))
+            img = Image.open(file)
+            self.exif[file.name]={self.tag_name(tag): self.conv_bytes(tag, value) for tag, value in (img._getexif() or {}).items() if self.tag_name(tag) not in self.ignore}
+            self.log.debug('{}: exif tags:\r\n{}'.format(file.name, pformat(self.exif.get(file.name))))
                 
     def conv_bytes(self, tag, value):
         '''
@@ -188,6 +188,7 @@ class ExifData:
             async with Nominatim(user_agent="{}-SamsungtvwsGetLocGallery".format(self.ip or ''), timeout=20, adapter_factory=AioHTTPAdapter) as geolocator:
                 reverse  = AsyncRateLimiter(geolocator.reverse, min_delay_seconds=1.5, max_retries=1, swallow_exceptions=False)
                 for file in file_list:
+                    file = file.name
                     if 'GEOPY_Address' not in self.exif[file].keys():
                         lat, lng = self.get_lat_long(file)
                         if lat and lng:

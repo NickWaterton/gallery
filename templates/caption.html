@@ -47,7 +47,9 @@
                             break;
                         case 'refresh':
                             //reload page
-                            window.open(self.location, '_self')
+                            console.log('refeshing page')
+                            wsSend('refresh', null)
+                            //window.open(self.location, '_self')
                             break;
                         default:
                             wsSend('caption', obj.name)

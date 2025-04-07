@@ -49,133 +49,16 @@ from samsungtvws.remote import SendRemoteKey
 from samsungtvws import __version__
 
 logging.basicConfig(level=logging.INFO)
-    
-class PIL_methods:
-    
-    def __init__(self, mon):
-        self.log = logging.getLogger('Main.'+__class__.__name__)
-        self.mon = mon
-        self.folder = self.mon.folder
-        self.uploaded_files = self.mon.uploaded_files
-        
-    async def initialize(self):
-        '''
-        initialize uploaded_files using PIL
-        compares the file data with thumbnails to find the content_id and write to uploaded_files
-        if it doesn't already exist
-        '''
-        if not HAVE_PIL:
-            return
-        self.log.info('Checking uploaded files list using PIL')
-        files_images = self.load_files()
-        if files_images:
-            self.log.info('getting My Photos list')
-            my_photos = await self.mon.get_tv_content('MY-C0002')
-            if my_photos is not None and len(my_photos) > 0:
-                await self.check_thumbnails(files_images, my_photos)
-            else:
-                self.log.info('no photos found on tv')
-        else:
-            self.log.info('no files, using origional uploaded files list')
-            
-    async def check_thumbnails(self, files_images, my_photos):
-        '''
-        download thumbnails from my_photos to compare with file data
-        save any updates
-        '''
-        self.log.info('downloading My Photos thumbnails, please wait...')
-        my_photos_thumbnails = await self.mon.get_thumbnails(my_photos)
-        if my_photos_thumbnails:
-            self.log.info('checking thumbnails against {} files, please wait...'.format(len(files_images)))
-            self.compare_thumbnails(files_images, my_photos_thumbnails)
-            self.mon.write_program_data()
-        else:
-            self.log.info('failed to get thumbnails')
-            
-    def compare_thumbnails(self, files_images, my_photos_thumbnails):
-        '''
-        compare file data with thumbnails to find a match, and update update_uploaded_files
-        '''
-        for k, (filename, file_data) in enumerate(files_images.items()):
-            for i, (my_content_id, my_data) in enumerate(my_photos_thumbnails.items()):
-                self.log_progress(len(files_images)*len(my_photos_thumbnails), k*len(files_images)+i)
-                self.log.debug('checking: {} against {}, thumbnail: {} bytes'.format(filename, my_content_id, len(my_data)))
-                if self.are_images_equal(Image.open(io.BytesIO(my_data)), file_data):
-                    self.log.info('found uploaded file: {} as {}'.format(filename, my_content_id))
-                    if filename not in self.uploaded_files.keys():
-                        self.mon.update_uploaded_files(filename, my_content_id)
-                    break
-        
-    def log_progress(self, total, count):
-        '''
-        log % progress every 10% if this will take a while
-        '''
-        if total >= 1000:
-            percent = min(100,(count*100)//total)
-            if count % (total//10) == 0:
-                self.log.info('{}% complete'.format(percent))
-        
-    def load_files(self):
-        '''
-        reads folder files, and returns dictionary of filenames and binary data
-        only used if PIL is installed
-        '''
-        files = self.mon.get_folder_files()
-        self.log.info('loading files: {}'.format(files))
-        files_images = self.get_files_dict(files)
-        self.log.info('loaded: {}'.format(list(files_images.keys())))
-        return files_images
-        
-    def get_files_dict(self, files):
-        '''
-        makes a dictionary of filename and file binary data
-        warns if file type given by extension is wrong
-        only used if PIL is installed
-        '''
-        files_images = {}
-        for file in files:
-            try:
-                data = Image.open(Path(self.folder, file))
-                format = self.mon.get_file_type(Path(self.folder, file), data)
-                if not (Path(file).suffix[1:].lower() == format or (format=='jpeg' and Path(file).suffix[1:].lower() == 'jpg')):
-                    self.log.warning('file: {} is of type {}, the extension is wrong! please fix this'.format(file, format))
-                files_images[file] = data
-            except Exception as e:
-                self.log.warning('Error loading: {}, {}'.format(file, e))
-        return files_images
-        
-    def fix_file_type(self, filename, file_type, image_data=None):
-        if not all([HAVE_PIL, file_type]):
-            return file_type
-        org = file_type
-        file_type = Image.open(filename).format.lower() if not image_data else image_data.format.lower()
-        if file_type in['jpg', 'jpeg', 'mpo']:
-            file_type = 'jpeg'
-        if not (org == file_type or (org == 'jpg' and file_type == 'jpeg')):
-            self.log.warning('file {} type changed from {} to {}'.format(filename, org, file_type))
-        return file_type
-        
-    def are_images_equal(self, img1, img2):
-        '''
-        rough check if images are similar using PIL (avoid numpy which is faster)
-        '''
-        img1 = img1.convert('L').resize((384, 216)).filter(ImageFilter.GaussianBlur(radius=2))
-        img2 = img2.convert('L').resize((384, 216)).filter(ImageFilter.GaussianBlur(radius=2))
-        img3 = ImageChops.difference(img1, img2)    #updated 11/3/25 per suggestion in issue #11
-        diff = sum(list(img3.getdata()))/(384*216)  #normalize
-        equal_content = diff <= 1.0                 #pick a threshhold
-        self.log.debug('equal_content: {}, diff: {}'.format(equal_content, diff))
-        return equal_content
-    
+             
 class monitor_and_display:
-    
+        
     allowed_ext = ['jpg', 'jpeg', 'png', 'bmp', 'tif']
     
     def __init__(self, ip, folder, period=5, update_time=1440, display_for=120, include_fav=False, sync=True, matte='none', sequential=False, on=False, token_file=None, art_mode=False):
         self.log = logging.getLogger('Main.'+__class__.__name__)
         self.debug = self.log.getEffectiveLevel() <= logging.DEBUG
         self.ip = ip
-        self.folder = folder
+        self.folder = Path(folder)
         self.update_time = int(max(0, update_time*60))   #convert minutes to seconds
         self.period = min(max(5, period), self.update_time, display_for) if self.update_time > 0 else period
         self.display_for = display_for
@@ -202,7 +85,6 @@ class monitor_and_display:
         self.lock = asyncio.Lock()
         self.timers = {}
         self.modified_files = set()
-        self.pil = PIL_methods(self)
         self.tv = SamsungTVAsyncArt(host=self.ip, port=8002, token_file=self.token_file)
         try:
             #might not work in Windows
@@ -253,6 +135,12 @@ class monitor_and_display:
         while time.time() - self.timers[name] < duration and not self.exit:
             await asyncio.sleep(1)
         self.timers.pop(name)
+                
+    def format_files(self, files):
+        '''
+        format list for logging if Path or string:
+        '''
+        return [file.name if isinstance(file, Path) else file for file in files]
         
     async def get_api_version(self):
         '''
@@ -296,7 +184,7 @@ class monitor_and_display:
         self.load_program_data()
         self.log.info('files in directory: {}: {}'.format(self.folder, self.get_folder_files()))
         if self.sync:
-            await self.pil.initialize() #optional
+            await self.initialize_pil() #optional
         else:
             self.log.warning('syncing disabled, not updating uploaded files list')
         
@@ -328,11 +216,11 @@ class monitor_and_display:
         self.log.info('got {} thumbnails'.format(len(thumbnails)))
         return thumbnails
         
-    def get_folder_files(self):
+    def get_folder_files(self, path=False):
         '''
-        returns list of files in folder is extension matches allowed image types
+        returns list of files names (str) or Path (if path is True) in folder if extension matches allowed image types
         '''
-        return [f.name for f in self.folder.iterdir() if f.is_file() and self.get_file_type(f) in self.allowed_ext]
+        return [f if path else f.name for f in self.folder.iterdir() if f.is_file() and self.get_file_type(f) in self.allowed_ext]
         
     async def get_current_artwork(self):
         '''
@@ -392,6 +280,12 @@ class monitor_and_display:
             self.log.error('Error reading file: {}, {}'.format(filename, e))
         return None, None
         
+    def get_suffix(self, filename):
+        '''
+        get suffix without '.' or ''
+        '''
+        return filename.suffix[1:].lower()
+        
     def get_file_type(self, filename, image_data=None):
         '''
         try to figure out what kind of image file is, starting with the extension
@@ -399,10 +293,9 @@ class monitor_and_display:
         fix the file type if it's wrong
         '''
         try:
-            file_type = Path(filename).suffix[1:].lower()
-            file_type = file_type.lower() if file_type else None
+            file_type = self.get_suffix(filename)
             if file_type in self.allowed_ext:
-                file_type = self.pil.fix_file_type(filename, file_type, image_data)
+                file_type = self.fix_file_type(filename, file_type, image_data)
                 return file_type
         except Exception as e:
             self.log.error('Error reading file: {}, {}'.format(filename, e))
@@ -413,25 +306,24 @@ class monitor_and_display:
         if file is uploaded, update the dictionary entry
         if content_id is None, file failed to upload, so remove it from the dict
         '''
-        self.uploaded_files.pop(filename, None)
+        self.uploaded_files.pop(filename.name, None)
         if content_id:
-            self.uploaded_files[filename] = {'content_id': content_id, 'modified':self.get_last_updated(filename)}
+            self.uploaded_files[filename.name] = {'content_id': content_id, 'modified':self.get_last_updated(filename)}
         
     async def upload_files(self, filenames):
         '''
         upload files in list to tv
         '''
         for filename in filenames:
-            path = Path(self.folder, filename)
-            file_data, file_type = self.read_file(path)
+            file_data, file_type = self.read_file(filename)
             if file_data and self.tv.art_mode:
-                self.log.info('uploading : {} to tv'.format(filename))
+                self.log.info('uploading : {} to tv'.format(filename.name))
                 async with self.lock:
-                    self.update_uploaded_files(filename, await self.tv.upload(file_data, file_type=file_type, matte=self.matte, portrait_matte=self.matte, timeout=20))
-                if self.uploaded_files.get(filename, {}).get('content_id'):
-                    self.log.info('uploaded : {} to tv as {}'.format(filename, self.uploaded_files[filename]['content_id']))
+                    self.update_uploaded_files(filename, await self.tv.upload(file_data, file_type=file_type, matte=self.matte, portrait_matte=self.matte, timeout=30))
+                if self.uploaded_files.get(filename.name, {}).get('content_id'):
+                    self.log.info('uploaded : {} to tv as {}'.format(filename.name, self.uploaded_files[filename.name]['content_id']))
                 else:
-                    self.log.warning('file: {} failed to upload'.format(filename))
+                    self.log.warning('file: {} failed to upload'.format(filename.name))
                 self.write_program_data()
             
     async def delete_files_from_tv(self, content_ids):
@@ -448,13 +340,17 @@ class monitor_and_display:
         '''
         get last updated timestamp for file
         '''
-        return Path(self.folder, filename).stat().st_mtime
+        #return Path(self.folder, filename).stat().st_mtime
+        try:
+            return filename.stat().st_mtime
+        except Exception as e:
+            self.log.exception(e)
         
     async def remove_files(self, files):
         '''
         if files deleted, remove them from tv
         '''
-        content_ids_removed = [v['content_id'] for k, v in self.uploaded_files.items() if k not in files]
+        content_ids_removed = [v['content_id'] for k, v in self.uploaded_files.items() if k not in [f.name for f in files]]
         #delete images from tv
         if content_ids_removed:
             await self.delete_files_from_tv(content_ids_removed)
@@ -465,11 +361,11 @@ class monitor_and_display:
         '''
         if new files found, upload to tv
         '''
-        new_files = [f for f in files if f not in self.uploaded_files.keys()]
+        new_files = [f for f in files if f.name not in self.uploaded_files.keys()]
         self.modified_files.update(new_files)
         #upload new files
         if new_files:
-            self.log.info('adding files to tv : {}'.format(new_files))
+            self.log.info('adding files to tv : {}'.format(self.format_files(new_files)))
             await self.wait_for_files(new_files)
             await self.upload_files(new_files)
             return True
@@ -480,13 +376,13 @@ class monitor_and_display:
         check if files were modified
         if so, delete old content on tv and upload new
         '''
-        modified_files = [f for f in files if f in self.uploaded_files.keys() and self.uploaded_files[f].get('modified') != self.get_last_updated(f)]
+        modified_files = [f for f in files if f.name in self.uploaded_files.keys() and self.uploaded_files[f.name].get('modified') != self.get_last_updated(f)]
         self.modified_files.update(modified_files)
         #delete old file and upload new:
         if modified_files:
-            self.log.info('updating files on tv : {}'.format(modified_files))
+            self.log.info('updating files on tv : {}'.format(self.format_files(modified_files)))
             await self.wait_for_files(modified_files)
-            files_to_delete = [v['content_id'] for k, v in self.uploaded_files.items() if k in modified_files]
+            files_to_delete = [v['content_id'] for k, v in self.uploaded_files.items() if k in [f.name for f in modified_files]]
             await self.delete_files_from_tv(files_to_delete)
             await self.upload_files(modified_files)
             return True
@@ -525,9 +421,12 @@ class monitor_and_display:
                 
     def get_content_ids(self):
         '''
-        return list of all content ids available for selecting to display
+        return list of all content ids available for selecting to display NOTE sets() are not ordered
+        if not including favourites, order list by filename in self.uploaded_files
         '''
-        return list({v['content_id'] for v in self.uploaded_files.values()}.union(self.fav))
+        if self.fav:
+            return list({v['content_id'] for v in self.uploaded_files.values()}.union(self.fav))
+        return [v['content_id'] for k, v in sorted(self.uploaded_files.items())]
         
     def get_next_art(self):
         '''
@@ -535,7 +434,7 @@ class monitor_and_display:
         '''
         content_ids = [id for id in self.get_content_ids() if id != self.current_content_id]
         if content_ids:
-            content_id = self.next_value(self.current_content_id, content_ids) if self.sequential else random.choice(content_ids)
+            content_id = self.next_value(self.current_content_id, self.get_content_ids()) if self.sequential else random.choice(content_ids)
             return content_id
         return None
         
@@ -598,9 +497,9 @@ class monitor_and_display:
             for filename, value in self.uploaded_files.items():
                 if value['content_id'] == self.current_content_id:
                     if direct:
-                        self.prev_filename = filename
+                        self.prev_filename = None#filename
                     return filename
-            await self.wait_seconds(10)
+            await self.wait_seconds(1)
         return 'off'
         
     async def tv_in_artmode(self):
@@ -641,7 +540,7 @@ class monitor_and_display:
         try:
             if await self.tv_in_artmode():
                 self.log.info('checking directory: {}{}'.format(self.folder, ' every {}'.format(self.get_time(self.period)) if self.period else ''))
-                files = self.get_folder_files()
+                files = self.get_folder_files(True)
                 await self.sync_file_list()
                 self.updated = any([
                     await self.remove_files(files),
@@ -670,6 +569,122 @@ class monitor_and_display:
             if self.period == 0:
                 break
             await self.wait_seconds(self.period)
+        
+    async def initialize_pil(self):
+        '''
+        initialize uploaded_files using PIL
+        compares the file data with thumbnails to find the content_id and write to uploaded_files
+        if it doesn't already exist
+        '''
+        if not HAVE_PIL:
+            return
+        self.log.info('Checking uploaded files list using PIL')
+        files_images = self.load_files()
+        if files_images:
+            self.log.info('getting My Photos list')
+            my_photos = await self.get_tv_content('MY-C0002')
+            if my_photos is not None and len(my_photos) > 0:
+                await self.check_thumbnails(files_images, my_photos)
+            else:
+                self.log.info('no photos found on tv')
+        else:
+            self.log.info('no files, using origional uploaded files list')
+            
+    async def check_thumbnails(self, files_images, my_photos):
+        '''
+        download thumbnails from my_photos to compare with file data
+        save any updates
+        '''
+        self.log.info('downloading My Photos thumbnails, please wait...')
+        my_photos_thumbnails = await self.get_thumbnails(my_photos)
+        if my_photos_thumbnails:
+            self.log.info('checking thumbnails against {} files, please wait...'.format(len(files_images)))
+            self.compare_thumbnails(files_images, my_photos_thumbnails)
+            self.write_program_data()
+        else:
+            self.log.info('failed to get thumbnails')
+            
+    def compare_thumbnails(self, files_images, my_photos_thumbnails):
+        '''
+        compare file data with thumbnails to find a match, and update update_uploaded_files
+        '''
+        for k, (filename, file_data) in enumerate(files_images.items()):
+            for i, (my_content_id, my_data) in enumerate(my_photos_thumbnails.items()):
+                self.log_progress(len(files_images)*len(my_photos_thumbnails), k*len(files_images)+i)
+                self.log.debug('checking: {} against {}, thumbnail: {} bytes'.format(filename.name, my_content_id, len(my_data)))
+                equal, diff =  self.are_images_equal(Image.open(io.BytesIO(my_data)), file_data)
+                if equal:
+                    self.log.info('found uploaded file: {} as {} diff: {}'.format(filename.name, my_content_id, round(diff, 2)))
+                    if filename.name not in self.uploaded_files.keys():
+                        self.update_uploaded_files(filename, my_content_id)
+                    break
+            if self.exit:
+                return False
+        return True
+        
+    def log_progress(self, total, count):
+        '''
+        log % progress every 10% if this will take a while
+        '''
+        if total >= 1000:
+            percent = min(100,(count*100)//total)
+            if count % (total//10) == 0:
+                self.log.info('{}% complete'.format(percent))
+        
+    def load_files(self):
+        '''
+        reads folder files, and returns dictionary of filenames and binary data
+        only used if PIL is installed
+        '''
+        files = self.get_folder_files(True)
+        self.log.info('loading files: {}'.format(self.format_files(files)))
+        files_images = self.get_files_dict(files)
+        self.log.info('loaded: {}'.format(self.format_files(files_images.keys())))
+        return files_images
+        
+    def get_files_dict(self, files):
+        '''
+        makes a dictionary of filename and file binary data
+        warns if file type given by extension is wrong
+        only used if PIL is installed
+        '''
+        files_images = {}
+        for file in files:
+            try:
+                data = Image.open(file)
+                format = self.get_file_type(file, data)
+                if not (self.get_suffix(file) == format or (format=='jpeg' and self.get_suffix(file) == 'jpg')):
+                    self.log.warning('file: {} is of type {}, the extension is wrong! please fix this'.format(file.name, format))
+                files_images[file] = data
+            except Exception as e:
+                self.log.warning('Error loading: {}, {}'.format(file, e))
+        return files_images
+ 
+    def fix_file_type(self, filename, file_type, image_data=None):
+        '''
+        check file type if we have PIL
+        '''
+        if not all([HAVE_PIL, file_type]):
+            return file_type
+        org = file_type
+        file_type = Image.open(filename).format.lower() if not image_data else image_data.format.lower()
+        if file_type in['jpg', 'jpeg', 'mpo']:
+            file_type = 'jpeg'
+        if not (org == file_type or (org == 'jpg' and file_type == 'jpeg')):
+            self.log.warning('file {} type changed from {} to {}'.format(filename, org, file_type))
+        return file_type
+        
+    def are_images_equal(self, img1, img2):
+        '''
+        rough check if images are similar using PIL (avoid numpy which is faster)
+        '''
+        img1 = img1.convert('L').resize((384, 216)).filter(ImageFilter.GaussianBlur(radius=4))
+        img2 = img2.convert('L').resize((384, 216)).filter(ImageFilter.GaussianBlur(radius=4))
+        img3 = ImageChops.difference(img1, img2)    #updated 11/3/25 per suggestion in issue #11
+        diff = sum(list(img3.getdata()))/(384*216)  #normalize
+        equal_content = diff <= 5.0                 #pick a threshhold
+        self.log.debug('equal_content: {}, diff: {}'.format(equal_content, round(diff, 2)))
+        return equal_content, diff
             
 async def main():
     global log

@@ -11,6 +11,7 @@
 # V 2.0.0 28/3/25 NW New version with seperate caption display
 # V 2.0.1 3/4/25  NW Minor fixes
 # V 2.0.2 4/4/25  NW Fix exif loading
+# V 2.0.3 7/4/25  NW refactored async_art_gallery_web.py and fixed sequential
 
 import quart_flask_patch
 import asyncio
@@ -27,7 +28,7 @@ from hypercorn.asyncio import serve
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 
-__version__ = '2.0.2'
+__version__ = '2.0.3'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -255,8 +256,8 @@ class WebServer(monitor_and_display):
                 #refresh current displayed file - called on websocket first connect
                 name = await self.get_current_filename(True)
                 self.log.info('got current image as: {}'.format(name))
-                await self.ws_send({'type':'update',
-                                    'name': name})
+                #await self.ws_send({'type':'update',
+                #                    'name': name})
 
             case _:
                 self.log.info('No match for data type: {]'.format(data['type']))
