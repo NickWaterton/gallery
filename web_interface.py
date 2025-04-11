@@ -119,6 +119,7 @@ class WebServer(monitor_and_display):
         if self.theme != 'dark':    #dark is not an actual theme, but a manual setting
             self.app.config['BOOTSTRAP_BOOTSWATCH_THEME'] = self.theme
         self.app.add_url_rule('/','show_thumbnails', self.show_thumbnails)
+        self.app.add_url_rule('/refresh_buttons','refresh_buttons', self.refresh_buttons)
         self.app.add_url_rule('/caption','show_caption', self.show_caption)
         self.app.add_websocket('/ws', 'ws', self.ws)
         
@@ -319,21 +320,38 @@ class WebServer(monitor_and_display):
             self.connected.discard(websoc)
         self.log.warning('WS({}): websocket closed'.format(websoc.id))
         
+    def get_data(self):
+        '''
+        get filenames from files in static folder and update exif if changed
+        '''
+        self.log.info('reloading thumnails')
+        image_names = self.get_folder_files()
+        self.exif.get_files(self.get_modified_files())
+        self.log.info('displaying Buttons for: {}'.format(image_names))
+        return image_names
+        
     async def show_caption(self):
         '''
         show caption screen
         '''
         self.log.info('loading caption page')
         return await render_template('caption.html', serif_font=self.serif_font, theme=self.theme)
+        
+    async def refresh_buttons(self):
+        '''
+        reconstruct thumbnail page from files in static folder
+        '''
+        self.log.info('reloading thumbnail buttons')
+        image_names = self.get_data()
+        window = await self.get_template_attribute('macros.html', 'render_buttons')
+        return await window(image_names, str(self.kiosk).lower())
 
     async def show_thumbnails(self):
         '''
         construct thumbnail page from files in static folder
         '''
-        self.log.info('loading thumnail page')
-        image_names = self.get_folder_files()
-        self.exif.get_files(self.get_modified_files())
-        self.log.info('displaying Buttons for: {}'.format(image_names))
+        self.log.info('loading thumbnail page')
+        image_names = self.get_data()
         return await render_template('home.html', names=image_names, kiosk=str(self.kiosk).lower())
         
     async def get_connected_screens_status(self, screen=None):

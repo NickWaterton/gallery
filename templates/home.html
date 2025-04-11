@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import render_buttons with context %}
 {% block scripts %}
 {{ super() }}
 <script type="text/javascript">
@@ -12,6 +13,14 @@
     window.onload = (event) => {
         console.log("Window is fully loaded, kiosk mode", kiosk);
         startWS()
+        // workaround to avoid bootstrap aria-hidden error when modals are hidden
+        document.addEventListener('hide.bs.modal', function (event) {
+            if (document.activeElement) {
+                console.log('removing modal')
+                document.activeElement.blur();
+                prevModal = null
+            }
+        });
     }
     
     window.onscroll = function (e) {  
@@ -66,15 +75,14 @@
                         case 'refresh':
                             //reload page
                             console.log('refreshing page')
-                            fetch('/')
+                            fetch('/refresh_buttons')
                             .then(res => res.text())
                             .then(text => {
-                                //hidePrevModal(true)
-                                //document.body.innerHTML = text
-                                //wsSend('refresh', null)
+                                hidePrevModal(true)
+                                document.body.innerHTML = text
                             })
                             .catch((error) => console.log('Fetch error: ', error))
-                            window.open(self.location, '_self')
+                            //window.open(self.location, '_self')
                             break;
                         default:
                             if (kiosk) {
@@ -160,18 +168,5 @@
 </script>
 {% endblock %}
 {% block content %}
-<h5 class="pb-2 mt-4 mb-2 border-bottom text-center">Click on a Picture</h5>
-<div class="container" >
-  <div class="row row-cols-2"> <!-- Number of columns here eg row-cols-3 -->
-  {% for name in names %}
-    <div class="col">
-      <button type="button" onclick="showImage('{{name}}')" class="btn btn-primary" >
-        <img class="img-fluid img-thumbnail" src="{{ url_for('static',filename=name) }}" alt="{{ name }}" >
-      </button>
-    </div>
-  {% endfor %}
-  </div>
-</div>
-<!-- Placeholder for Modal Window -->
-<div id="modal"></div>
+{{ render_buttons(names, kiosk) }}
 {% endblock %}

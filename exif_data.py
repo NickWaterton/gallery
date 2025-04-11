@@ -104,9 +104,12 @@ class ExifData:
         '''
         if HAVE_PIL: # and file not in self.exif.keys():
             self.log.info('{}: getting exif data'.format(file.name))
-            img = Image.open(file)
-            self.exif[file.name]={self.tag_name(tag): self.conv_bytes(tag, value) for tag, value in (img._getexif() or {}).items() if self.tag_name(tag) not in self.ignore}
-            self.log.debug('{}: exif tags:\r\n{}'.format(file.name, pformat(self.exif.get(file.name))))
+            try:
+                img = Image.open(file)
+                self.exif[file.name]={self.tag_name(tag): self.conv_bytes(tag, value) for tag, value in (img._getexif() or {}).items() if self.tag_name(tag) not in self.ignore}
+                self.log.debug('{}: exif tags:\r\n{}'.format(file.name, pformat(self.exif.get(file.name))))
+            except FileNotFoundError:
+                pass
                 
     def conv_bytes(self, tag, value):
         '''

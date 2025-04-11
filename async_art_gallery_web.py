@@ -238,6 +238,7 @@ class monitor_and_display:
         '''
         my_photos = await self.get_tv_content('MY-C0002')
         if my_photos is not None:
+            self.log.info('Syncing uploaded_files with TV')
             self.uploaded_files = {k:v for k,v in self.uploaded_files.items() if v['content_id'] in my_photos}
             self.write_program_data()
         

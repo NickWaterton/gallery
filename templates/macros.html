@@ -65,3 +65,21 @@
   </div>
   <!-- End Caption -->
 {% endmacro %}
+{% macro render_buttons(names, kiosk) %}
+  <!-- Buttons -->
+  <h5 class="pb-2 mt-4 mb-2 border-bottom text-center" id="text-header">Click on a Picture</h5>
+  <div class="container" >
+    <div class="row row-cols-2"> <!-- Number of columns here eg row-cols-3 -->
+    {% for name in names %}
+      <div class="col">
+        <button type="button" onclick="showImage('{{name}}')" class="btn btn-primary" >
+          <img class="img-fluid img-thumbnail" src="{{ url_for('static',filename=name) }}" alt="{{ name }}" >
+        </button>
+      </div>
+    {% endfor %}
+    </div>
+  </div>
+  <!-- Placeholder for Modal Window -->
+  <div id="modal"></div>
+  <!-- End Buttons -->
+{% endmacro %}
