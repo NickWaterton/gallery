@@ -488,17 +488,13 @@ class monitor_and_display:
             await asyncio.sleep(1)
         yield 'off'
             
-    async def get_current_filename(self, direct=False):
+    async def get_current_filename(self):
         '''
         return current filename for displayed image on TV or 'off'
         '''
         if await self.tv_in_artmode():
-            if direct or self.current_content_id is None:
-                self.current_content_id = await self.get_current_artwork()
             for filename, value in self.uploaded_files.items():
                 if value['content_id'] == self.current_content_id:
-                    if direct:
-                        self.prev_filename = None#filename
                     return filename
             await self.wait_seconds(1)
         return 'off'

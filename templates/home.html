@@ -4,6 +4,7 @@
 {{ super() }}
 <script type="text/javascript">
     const kiosk = {{ kiosk }} //kiosk mode or not
+    var theme = "{{ theme }}"
     var prevModal = null
     var evtSource = null
     var scrollTimer = null
@@ -11,12 +12,13 @@
     var ws = null
 
     window.onload = (event) => {
-        console.log("Window is fully loaded, kiosk mode", kiosk);
+        console.log("Window is fully loaded, kiosk mode: %s, theme: %s", kiosk, theme);
         startWS()
         // workaround to avoid bootstrap aria-hidden error when modals are hidden
         document.addEventListener('hide.bs.modal', function (event) {
             if (document.activeElement) {
                 console.log('removing modal')
+                //remove focus
                 document.activeElement.blur();
                 prevModal = null
             }
@@ -51,7 +53,7 @@
         }
         ws.onclose = (event) => {
             console.log("%cWebsocket closed", "color: red");
-            hidePrevModal(true)
+            hidePrevModal()
             // restart websocket connection
             wsTimer = setTimeout(function() {
                 startWS();
@@ -70,26 +72,36 @@
                     console.log("got display update ", obj.name);
                     switch(obj.name) {
                         case 'off':
-                            hidePrevModal(true)
+                            hidePrevModal()
                             break;
                         case 'refresh':
-                            //reload page
-                            console.log('refreshing page')
-                            fetch('/refresh_buttons')
-                            .then(res => res.text())
-                            .then(text => {
-                                hidePrevModal(true)
-                                document.body.innerHTML = text
-                            })
-                            .catch((error) => console.log('Fetch error: ', error))
+                            //request buttons reload
+                            wsSend('reload', null)
+                            break;
+                        case 'reload':
+                            //reload buttons
+                            if (obj.html) {
+                                console.log('%creloading page', "color: red")
+                                hidePrevModal()
+                                document.body.innerHTML = obj.html
+                            }
                             //window.open(self.location, '_self')
                             break;
                         default:
+                            //obj.name is a filename
                             if (kiosk) {
                                 displayModal(obj.name)
                             } else {
-                                hidePrevModal(true)
+                                hidePrevModal()
                             }
+                    }
+                    break;
+                case 'theme':
+                    console.log('received theme: ', obj.name)
+                    if (obj.name != 'dark' && theme != obj.name) {
+                        //reload page if theme changes (ignore dark)
+                        console.log('%creloading page because new theme %s selected', "color: red", obj.name)
+                        window.open(self.location, '_self')
                     }
                     break;
                 case 'modal':
@@ -125,13 +137,10 @@
         }
     }
         
-    function hidePrevModal(del=false) {
+    function hidePrevModal() {
         if (prevModal !== null) {
             console.log("hiding previous modal: ", prevModal._element.id)
             prevModal.hide()
-            if (del) {
-                prevModal = null
-            }
         }
     }
     

@@ -45,15 +45,20 @@
                         case 'off':
                             updateCaption(obj.name, '')
                             break;
+                        case 'reload':
+                            //ignore reload
+                            break;
+                        
                         case 'refresh':
-                            //reload page
-                            console.log('refeshing page')
-                            wsSend('refresh', null)
-                            //window.open(self.location, '_self')
+                            //ignore refresh
                             break;
                         default:
+                            //get caption text for obj.name
                             wsSend('caption', obj.name)
                     }
+                    break;
+                case 'theme':
+                    //ignore theme
                     break;
                 case 'caption':
                     console.log("got caption update ", obj.name);

@@ -12,6 +12,7 @@
 # V 2.0.1 3/4/25  NW Minor fixes
 # V 2.0.2 4/4/25  NW Fix exif loading
 # V 2.0.3 7/4/25  NW refactored async_art_gallery_web.py and fixed sequential
+# V 2.0.4 12/4/25 NW fixed themes loading, and streamlined updates.
 
 import quart_flask_patch
 import asyncio
@@ -28,7 +29,7 @@ from hypercorn.asyncio import serve
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 
-__version__ = '2.0.3'
+__version__ = '2.0.4'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -119,7 +120,6 @@ class WebServer(monitor_and_display):
         if self.theme != 'dark':    #dark is not an actual theme, but a manual setting
             self.app.config['BOOTSTRAP_BOOTSWATCH_THEME'] = self.theme
         self.app.add_url_rule('/','show_thumbnails', self.show_thumbnails)
-        self.app.add_url_rule('/refresh_buttons','refresh_buttons', self.refresh_buttons)
         self.app.add_url_rule('/caption','show_caption', self.show_caption)
         self.app.add_websocket('/ws', 'ws', self.ws)
         
@@ -218,7 +218,7 @@ class WebServer(monitor_and_display):
         while not self.exit:
             #stream filename changes on TV to web page
             data['name'] = await anext(filename)        #blocks until next filename is available
-            for screen in self.screens:
+            for screen in self.screens:                 #turn screens on or off
                 await self.caption_screen_control(data['name']!='off', screen=screen.split(' ')[0])
             for websoc in self.connected:
                 if websoc.skip:
@@ -247,21 +247,23 @@ class WebServer(monitor_and_display):
                 send_data = await self.get_window_data(data['name'], type='caption')
                 await self.ws_send(send_data)
                 
-            case'display':
-                #display file on TV
+            case 'display':
+                #display filename on TV via manual selection
                 self.log.info('show image: {}'.format(data['name']))
                 websoc.skip.add(data['name'])
                 await self.set_image_from_filename(data['name'])
                 
-            case 'refresh':
-                #refresh current displayed file - called on websocket first connect
-                name = await self.get_current_filename(True)
-                self.log.info('got current image as: {}'.format(name))
-                #await self.ws_send({'type':'update',
-                #                    'name': name})
-
+            case 'reload':
+                # reload buttons - called if files have been updated
+                image_names = self.get_data()
+                window = await self.get_template_attribute('macros.html', 'render_buttons')
+                html = await window(image_names, str(self.kiosk).lower())
+                await self.ws_send({'type':'update',
+                                    'name': 'reload',
+                                    'html': html})
+                
             case _:
-                self.log.info('No match for data type: {]'.format(data['type']))
+                self.log.info('No match for data type: {}'.format(data['type']))
                 
     async def get_window_data(self, name, type='modal'):
         '''
@@ -302,7 +304,7 @@ class WebServer(monitor_and_display):
             websoc.skip = set()
             websoc.id = self.ws_id
             self.log.info('{} websocket connected'.format(len(self.connected)))
-            await self.ws_process({'type': 'refresh'})  #send 'refresh' to update display on first connection
+            await self.ws_send({'type': 'theme', 'name': str(self.theme)})  #send 'theme' with name of theme to update display on first connection
             producer = asyncio.create_task(self.sending())
             consumer = asyncio.create_task(self.receiving())
             await asyncio.gather(producer, consumer)
@@ -336,15 +338,6 @@ class WebServer(monitor_and_display):
         '''
         self.log.info('loading caption page')
         return await render_template('caption.html', serif_font=self.serif_font, theme=self.theme)
-        
-    async def refresh_buttons(self):
-        '''
-        reconstruct thumbnail page from files in static folder
-        '''
-        self.log.info('reloading thumbnail buttons')
-        image_names = self.get_data()
-        window = await self.get_template_attribute('macros.html', 'render_buttons')
-        return await window(image_names, str(self.kiosk).lower())
 
     async def show_thumbnails(self):
         '''
@@ -352,7 +345,7 @@ class WebServer(monitor_and_display):
         '''
         self.log.info('loading thumbnail page')
         image_names = self.get_data()
-        return await render_template('home.html', names=image_names, kiosk=str(self.kiosk).lower())
+        return await render_template('home.html', names=image_names, kiosk=str(self.kiosk).lower(), theme=self.theme)
         
     async def get_connected_screens_status(self, screen=None):
         '''
