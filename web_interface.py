@@ -13,6 +13,7 @@
 # V 2.0.2 4/4/25  NW Fix exif loading
 # V 2.0.3 7/4/25  NW refactored async_art_gallery_web.py and fixed sequential
 # V 2.0.4 12/4/25 NW fixed themes loading, and streamlined updates.
+# V 2.0.5 13/4/25 NW major refactoring
 
 import quart_flask_patch
 import asyncio
@@ -29,7 +30,7 @@ from hypercorn.asyncio import serve
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 
-__version__ = '2.0.4'
+__version__ = '2.0.5'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -164,7 +165,7 @@ class WebServer(monitor_and_display):
         '''
         self.log.info('SIGINT/SIGTERM received, exiting')
         self.exit=True
-        super().close()
+        monitor_and_display.close(self)
         
     def add_signals(self):
         '''
@@ -292,6 +293,14 @@ class WebServer(monitor_and_display):
         get current websocket object
         '''
         return websocket._get_current_object()
+        
+    async def initialize_ws(self):
+        '''
+        send initialization info for web page on ws connection
+        '''
+        await self.ws_send({'type': 'theme', 'name': str(self.theme)})  #send 'theme' with name of theme to update display on first connection
+        await self.ws_send({'type': 'kiosk', 'name': str(self.kiosk)})  #send 'kiosk' with name as kiosk mode
+        self.current_content_id = None   #trigger reload of filename
 
     async def ws(self):
         '''
@@ -304,7 +313,7 @@ class WebServer(monitor_and_display):
             websoc.skip = set()
             websoc.id = self.ws_id
             self.log.info('{} websocket connected'.format(len(self.connected)))
-            await self.ws_send({'type': 'theme', 'name': str(self.theme)})  #send 'theme' with name of theme to update display on first connection
+            await self.initialize_ws()
             producer = asyncio.create_task(self.sending())
             consumer = asyncio.create_task(self.receiving())
             await asyncio.gather(producer, consumer)

@@ -3,7 +3,7 @@
 {% block scripts %}
 {{ super() }}
 <script type="text/javascript">
-    const kiosk = {{ kiosk }} //kiosk mode or not
+    var kiosk = {{ kiosk }} //kiosk mode or not
     var theme = "{{ theme }}"
     var prevModal = null
     var evtSource = null
@@ -103,6 +103,10 @@
                         console.log('%creloading page because new theme %s selected', "color: red", obj.name)
                         window.open(self.location, '_self')
                     }
+                    break;
+                case 'kiosk':
+                    console.log("got kiosk update ", obj.name);
+                    kiosk = obj.name == 'True'
                     break;
                 case 'modal':
                     console.log("got modal update ", obj.name);

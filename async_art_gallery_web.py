@@ -25,39 +25,27 @@ The default checking period is 60 seconds or the update period whichever is less
 It is loaded by the web_interface.py program
 '''
 
-import sys
 import logging
 from pathlib import Path
 import sys
-import io
-import random, string
+import random
 import json
 import asyncio
 import time
-import datetime
-from signal import SIGTERM, SIGINT
-HAVE_PIL = False
-try:
-    from PIL import Image, ImageFilter, ImageChops
-    HAVE_PIL=True
-except ImportError:
-    pass
 
-from samsungtvws.async_art import SamsungTVAsyncArt
-from samsungtvws.async_remote import SamsungTVWSAsyncRemote
-from samsungtvws.remote import SendRemoteKey
 from samsungtvws import __version__
+from tv_interface import TVInterface
 
 logging.basicConfig(level=logging.INFO)
              
-class monitor_and_display:
+class monitor_and_display(TVInterface):
         
-    allowed_ext = ['jpg', 'jpeg', 'png', 'bmp', 'tif']
+    #allowed_ext = ['jpg', 'jpeg', 'png', 'bmp', 'tif']
     
     def __init__(self, ip, folder, period=5, update_time=1440, display_for=120, include_fav=False, sync=True, matte='none', sequential=False, on=False, token_file=None, art_mode=False):
         self.log = logging.getLogger('Main.'+__class__.__name__)
         self.debug = self.log.getEffectiveLevel() <= logging.DEBUG
-        self.ip = ip
+        super().__init__(ip, token_file, folder, art_mode)
         self.folder = Path(folder)
         self.update_time = int(max(0, update_time*60))   #convert minutes to seconds
         self.period = min(max(5, period), self.update_time, display_for) if self.update_time > 0 else period
@@ -67,14 +55,9 @@ class monitor_and_display:
         self.matte = matte
         self.sequential = sequential
         self.on = on
-        # Autosave token to file
-        self.token_file = Path(token_file) if token_file else token_file
-        self.art_mode = art_mode
-        self.art_task = None
         self.program_data_path = Path('./uploaded_files.json')
         self.uploaded_files = {}
         self.fav = set()
-        self.api_version = 0
         self.start = time.time()
         self.skip = time.time() - self.display_for
         self.current_content_id = None
@@ -82,37 +65,25 @@ class monitor_and_display:
         self.updated = True
         self.exit = False
         self.busy = False
-        self.lock = asyncio.Lock()
-        self.timers = {}
         self.modified_files = set()
-        self.tv = SamsungTVAsyncArt(host=self.ip, port=8002, token_file=self.token_file)
-        try:
-            #might not work in Windows
-            asyncio.get_running_loop().add_signal_handler(SIGINT, self.close)
-            asyncio.get_running_loop().add_signal_handler(SIGTERM, self.close)
-        except Exception:
-            pass
         
     async def start_monitoring(self):
         '''
         program entry point
         '''
         self.busy = True
-        if self.on and not await self.tv.on():
+        if self.on and not await self.tv_on():
             self.log.info('TV is off, exiting')
         else:
             self.log.info('Start Monitoring')
             try:
-                await self.tv.start_listening()
-                if self.art_mode:
-                    self.art_task = asyncio.create_task(self.ensure_artmode())
-                self.log.info('Started')
+                await self.connect()
             except Exception as e:
                 self.log.error('failed to connect with TV: {}'.format(e))
-            if self.tv.is_alive():
-                await self.check_matte()
+            if self.tv_is_alive():
+                self.matte = await self.check_matte(self.matte)
                 await self.select_artwork()
-        await self.tv.close()
+        await TVInterface.close(self)
         self.log.info('exited')
         self.busy = False
         
@@ -120,55 +91,9 @@ class monitor_and_display:
         '''
         exit on signal
         '''
-        self.log.info('SIGINT/SIGTERM received, exiting, please wait for tasks to complete...')
+        self.log.info('EXIT received, exiting, please wait for tasks to complete...')
         self.exit = True
-        if self.art_task:
-            self.art_task.cancel()
         #raise SystemExit('cancelled')
-        
-    async def wait_seconds(self, duration=1):
-        '''
-        pause for specific duration (seconds) while allowing exit
-        '''
-        name = ''.join(random.choice(string.ascii_letters) for x in range(12))
-        self.timers[name] = time.time()
-        while time.time() - self.timers[name] < duration and not self.exit:
-            await asyncio.sleep(1)
-        self.timers.pop(name)
-                
-    def format_files(self, files):
-        '''
-        format list for logging if Path or string:
-        '''
-        return [file.name if isinstance(file, Path) else file for file in files]
-        
-    async def get_api_version(self):
-        '''
-        checks api version to see if it's old (<2021) or new type
-        sets api_version to 0 for old, and 1 for new
-        '''
-        api_version = await self.tv.get_api_version()
-        self.log.info('API version: {}'.format(api_version))
-        self.api_version = 0 if int(api_version.replace('.','')) < 4000 else 1
-        
-    async def check_matte(self):
-        '''
-        checks if the matte passed for uploads to use is valid type and color
-        '''
-        if self.matte != 'none':
-            matte = self.matte.split('_')
-            try:
-                mattes = await self.tv.get_matte_list(True)
-                matte_types, matte_colors = ([m['matte_type'] for m in mattes[0]], [m['color'] for m in mattes[1]])
-                if matte[0] in matte_types and matte[1] in matte_colors:
-                    self.log.info('using matte: {}'.format(self.matte))
-                    return
-                else:
-                    self.log.info('Valid mattes types: {} and colors: {}'.format(matte_types, matte_colors))
-                self.log.warning('Invalid matte selected: {}. A valid matte would be shadowbox_polar for eample, using none'.format(self.matte))
-            except AssertionError:
-                self.log.warning('Error getting mattes list, setting to none'.format(e))
-            self.matte = 'none'
             
     async def initialize(self):
         '''
@@ -187,50 +112,6 @@ class monitor_and_display:
             await self.initialize_pil() #optional
         else:
             self.log.warning('syncing disabled, not updating uploaded files list')
-        
-    async def get_tv_content(self, category='MY-C0002'):
-        '''
-        gets content_id list of category - either My Photos (MY-C0002) or Favourites (MY-C0004) from tv
-        '''
-        try:
-            async with self.lock:
-                result = [v['content_id'] for v in await self.tv.available(category, timeout=10)]
-        except AssertionError:
-            self.log.warning('failed to get contents from TV')
-            result = None
-        return result
-        
-    async def get_thumbnails(self, content_ids):
-        '''
-        gets thumbnails from tv in list of content_ids
-        returns dictionary of content_ids and binary data
-        only used if PIL is installed
-        '''
-        thumbnails = {}
-        if content_ids:
-            async with self.lock:
-                if self.api_version == 0:
-                    thumbnails = {content_id:await self.tv.get_thumbnail(content_id) for content_id in content_ids}
-                elif self.api_version == 1:
-                    thumbnails = {k.split('.')[0]:v for k,v in (await self.tv.get_thumbnail_list(content_ids)).items()}
-        self.log.info('got {} thumbnails'.format(len(thumbnails)))
-        return thumbnails
-        
-    def get_folder_files(self, path=False):
-        '''
-        returns list of files names (str) or Path (if path is True) in folder if extension matches allowed image types
-        '''
-        return [f if path else f.name for f in self.folder.iterdir() if f.is_file() and self.get_file_type(f) in self.allowed_ext]
-        
-    async def get_current_artwork(self):
-        '''
-        reads currently displayed art content_id from tv
-        '''
-        try:
-            content_id = (await self.tv.get_current()).get('content_id')
-        except Exception:
-            content_id = None
-        return content_id
             
     async def sync_file_list(self):
         '''
@@ -241,12 +122,6 @@ class monitor_and_display:
             self.log.info('Syncing uploaded_files with TV')
             self.uploaded_files = {k:v for k,v in self.uploaded_files.items() if v['content_id'] in my_photos}
             self.write_program_data()
-        
-    def get_time(self, sec):
-        '''
-        returns seconds as timedelta for display as h:m:s
-        '''
-        return datetime.timedelta(seconds = sec)
    
     def load_program_data(self):
         '''
@@ -268,84 +143,15 @@ class monitor_and_display:
         
         program_data = {'last_update': self.start, 'uploaded_files': self.uploaded_files}
         self.program_data_path.write_text(json.dumps(program_data, indent=2))
-            
-    def read_file(self, filename):
-        '''
-        read image file, return file binary data and file type
-        '''
-        try:
-            file_data = Path(filename).read_bytes()
-            file_type = self.get_file_type(filename)
-            return file_data, file_type
-        except Exception as e:
-            self.log.error('Error reading file: {}, {}'.format(filename, e))
-        return None, None
-        
-    def get_suffix(self, filename):
-        '''
-        get suffix without '.' or ''
-        '''
-        return filename.suffix[1:].lower()
-        
-    def get_file_type(self, filename, image_data=None):
-        '''
-        try to figure out what kind of image file is, starting with the extension
-        use PIL if available to check
-        fix the file type if it's wrong
-        '''
-        try:
-            file_type = self.get_suffix(filename)
-            if file_type in self.allowed_ext:
-                file_type = self.fix_file_type(filename, file_type, image_data)
-                return file_type
-        except Exception as e:
-            self.log.error('Error reading file: {}, {}'.format(filename, e))
-        return None
-            
-    def update_uploaded_files(self, filename, content_id):
-        '''
-        if file is uploaded, update the dictionary entry
-        if content_id is None, file failed to upload, so remove it from the dict
-        '''
-        self.uploaded_files.pop(filename.name, None)
-        if content_id:
-            self.uploaded_files[filename.name] = {'content_id': content_id, 'modified':self.get_last_updated(filename)}
         
     async def upload_files(self, filenames):
         '''
         upload files in list to tv
         '''
-        for filename in filenames:
-            file_data, file_type = self.read_file(filename)
-            if file_data and self.tv.art_mode:
-                self.log.info('uploading : {} to tv'.format(filename.name))
-                async with self.lock:
-                    self.update_uploaded_files(filename, await self.tv.upload(file_data, file_type=file_type, matte=self.matte, portrait_matte=self.matte, timeout=30))
-                if self.uploaded_files.get(filename.name, {}).get('content_id'):
-                    self.log.info('uploaded : {} to tv as {}'.format(filename.name, self.uploaded_files[filename.name]['content_id']))
-                else:
-                    self.log.warning('file: {} failed to upload'.format(filename.name))
-                self.write_program_data()
-            
-    async def delete_files_from_tv(self, content_ids):
-        '''
-        remove files from tv if tv is in art mode
-        '''
-        if self.tv.art_mode:
-            async with self.lock:
-                self.log.info('removing files from tv : {}'.format(content_ids))
-                await self.tv.delete_list(content_ids)
-            await self.sync_file_list()
-
-    def get_last_updated(self, filename):
-        '''
-        get last updated timestamp for file
-        '''
-        #return Path(self.folder, filename).stat().st_mtime
-        try:
-            return filename.stat().st_mtime
-        except Exception as e:
-            self.log.exception(e)
+        uploaded_files, missing_files = await self.upload_files_to_tv(filenames, self.matte)
+        [self.uploaded_files.pop(filename) for filename in missing_files]
+        self.uploaded_files.update(uploaded_files)
+        self.write_program_data()
         
     async def remove_files(self, files):
         '''
@@ -354,7 +160,8 @@ class monitor_and_display:
         content_ids_removed = [v['content_id'] for k, v in self.uploaded_files.items() if k not in [f.name for f in files]]
         #delete images from tv
         if content_ids_removed:
-            await self.delete_files_from_tv(content_ids_removed)
+            if await self.delete_files_from_tv(content_ids_removed):
+                await self.sync_file_list()
             return True
         return False
             
@@ -384,14 +191,11 @@ class monitor_and_display:
             self.log.info('updating files on tv : {}'.format(self.format_files(modified_files)))
             await self.wait_for_files(modified_files)
             files_to_delete = [v['content_id'] for k, v in self.uploaded_files.items() if k in [f.name for f in modified_files]]
-            await self.delete_files_from_tv(files_to_delete)
+            if files_to_delete and await self.delete_files_from_tv(files_to_delete):
+                await self.sync_file_list()
             await self.upload_files(modified_files)
             return True
         return False
-            
-    async def wait_for_files(self, files):
-        #wait for files to arrive
-        await self.wait_seconds(min(10, 5 * len(files)))
         
     def get_modified_files(self):
         '''
@@ -439,21 +243,13 @@ class monitor_and_display:
             return content_id
         return None
         
-    def next_value(self, value, lst):
-        '''
-        get next value from list, or return first element
-        return None if list is empty
-        '''
-        return lst[(lst.index(value)+1) % len(lst)] if value in lst else lst[0] if lst else None
-        
     async def change_art(self, new_content_id=None):
         '''
         update displayed art on tv, if next_art is a different content_id to current
         '''
         content_id = new_content_id or self.get_next_art()
         if content_id and content_id != self.current_content_id:
-            self.log.info('selecting tv art: content_id: {}'.format(content_id))
-            await self.tv.select_image(content_id)
+            await self.select_image(content_id)
             self.current_content_id = content_id
         else:
             self.log.info('skipping art update, as new content_id: {} is the same as currently shown'.format(content_id))
@@ -493,42 +289,14 @@ class monitor_and_display:
         return current filename for displayed image on TV or 'off'
         '''
         if await self.tv_in_artmode():
+            if self.current_content_id is None:
+                self.current_content_id = await self.get_current_artwork()
+                self.prev_filename = None
             for filename, value in self.uploaded_files.items():
                 if value['content_id'] == self.current_content_id:
                     return filename
             await self.wait_seconds(1)
         return 'off'
-        
-    async def tv_in_artmode(self):
-        '''
-        is TV on, and in art mode
-        '''
-        try:
-            async with self.lock:
-                if not self.exit:
-                    return await self.tv.in_artmode()
-        except AssertionError as e:
-            self.log.warning('AssertionError error: {} returning: {}'.format(e, self.tv.art_mode))
-        return self.tv.art_mode
-        
-    async def ensure_artmode(self):
-        '''
-        Keep TV in art_mode, (ie not playing) unless TV is off
-        '''
-        self.log.info('ensure art_mode enabled')
-        self.tv_remote = SamsungTVWSAsyncRemote(host=self.ip, port=8002, token_file=self.token_file)
-        while not self.exit:
-            try:
-                async with self.lock:
-                    if await self.tv.on():
-                        if await self.tv.get_artmode() != 'on':
-                            #send KEY_POWER
-                            self.log.warning('TV is playing, sending KEY_POWER')
-                            await self.tv_remote.send_command(SendRemoteKey.click("KEY_POWER"))
-            except AssertionError as e:
-                self.log.warning('AssertionError')
-            await self.wait_seconds(15)
-        await self.tv_remote.close()
     
     async def check_dir(self):
         '''
@@ -573,115 +341,13 @@ class monitor_and_display:
         compares the file data with thumbnails to find the content_id and write to uploaded_files
         if it doesn't already exist
         '''
-        if not HAVE_PIL:
-            return
-        self.log.info('Checking uploaded files list using PIL')
-        files_images = self.load_files()
-        if files_images:
-            self.log.info('getting My Photos list')
-            my_photos = await self.get_tv_content('MY-C0002')
-            if my_photos is not None and len(my_photos) > 0:
-                await self.check_thumbnails(files_images, my_photos)
-            else:
-                self.log.info('no photos found on tv')
-        else:
-            self.log.info('no files, using origional uploaded files list')
-            
-    async def check_thumbnails(self, files_images, my_photos):
-        '''
-        download thumbnails from my_photos to compare with file data
-        save any updates
-        '''
-        self.log.info('downloading My Photos thumbnails, please wait...')
-        my_photos_thumbnails = await self.get_thumbnails(my_photos)
-        if my_photos_thumbnails:
-            self.log.info('checking thumbnails against {} files, please wait...'.format(len(files_images)))
-            self.compare_thumbnails(files_images, my_photos_thumbnails)
+        uploaded_files = await self.compare_thumbnails_with_files()
+        if uploaded_files:
+            self.uploaded_files.update(uploaded_files)
             self.write_program_data()
         else:
-            self.log.info('failed to get thumbnails')
-            
-    def compare_thumbnails(self, files_images, my_photos_thumbnails):
-        '''
-        compare file data with thumbnails to find a match, and update update_uploaded_files
-        '''
-        for k, (filename, file_data) in enumerate(files_images.items()):
-            for i, (my_content_id, my_data) in enumerate(my_photos_thumbnails.items()):
-                self.log_progress(len(files_images)*len(my_photos_thumbnails), k*len(files_images)+i)
-                self.log.debug('checking: {} against {}, thumbnail: {} bytes'.format(filename.name, my_content_id, len(my_data)))
-                equal, diff =  self.are_images_equal(Image.open(io.BytesIO(my_data)), file_data)
-                if equal:
-                    self.log.info('found uploaded file: {} as {} diff: {}'.format(filename.name, my_content_id, round(diff, 2)))
-                    if filename.name not in self.uploaded_files.keys():
-                        self.update_uploaded_files(filename, my_content_id)
-                    break
-            if self.exit:
-                return False
-        return True
-        
-    def log_progress(self, total, count):
-        '''
-        log % progress every 10% if this will take a while
-        '''
-        if total >= 1000:
-            percent = min(100,(count*100)//total)
-            if count % (total//10) == 0:
-                self.log.info('{}% complete'.format(percent))
-        
-    def load_files(self):
-        '''
-        reads folder files, and returns dictionary of filenames and binary data
-        only used if PIL is installed
-        '''
-        files = self.get_folder_files(True)
-        self.log.info('loading files: {}'.format(self.format_files(files)))
-        files_images = self.get_files_dict(files)
-        self.log.info('loaded: {}'.format(self.format_files(files_images.keys())))
-        return files_images
-        
-    def get_files_dict(self, files):
-        '''
-        makes a dictionary of filename and file binary data
-        warns if file type given by extension is wrong
-        only used if PIL is installed
-        '''
-        files_images = {}
-        for file in files:
-            try:
-                data = Image.open(file)
-                format = self.get_file_type(file, data)
-                if not (self.get_suffix(file) == format or (format=='jpeg' and self.get_suffix(file) == 'jpg')):
-                    self.log.warning('file: {} is of type {}, the extension is wrong! please fix this'.format(file.name, format))
-                files_images[file] = data
-            except Exception as e:
-                self.log.warning('Error loading: {}, {}'.format(file, e))
-        return files_images
- 
-    def fix_file_type(self, filename, file_type, image_data=None):
-        '''
-        check file type if we have PIL
-        '''
-        if not all([HAVE_PIL, file_type]):
-            return file_type
-        org = file_type
-        file_type = Image.open(filename).format.lower() if not image_data else image_data.format.lower()
-        if file_type in['jpg', 'jpeg', 'mpo']:
-            file_type = 'jpeg'
-        if not (org == file_type or (org == 'jpg' and file_type == 'jpeg')):
-            self.log.warning('file {} type changed from {} to {}'.format(filename, org, file_type))
-        return file_type
-        
-    def are_images_equal(self, img1, img2):
-        '''
-        rough check if images are similar using PIL (avoid numpy which is faster)
-        '''
-        img1 = img1.convert('L').resize((384, 216)).filter(ImageFilter.GaussianBlur(radius=4))
-        img2 = img2.convert('L').resize((384, 216)).filter(ImageFilter.GaussianBlur(radius=4))
-        img3 = ImageChops.difference(img1, img2)    #updated 11/3/25 per suggestion in issue #11
-        diff = sum(list(img3.getdata()))/(384*216)  #normalize
-        equal_content = diff <= 5.0                 #pick a threshhold
-        self.log.debug('equal_content: {}, diff: {}'.format(equal_content, round(diff, 2)))
-        return equal_content, diff
+            self.log.info('no files, using origional uploaded files list')
+
             
 async def main():
     global log
