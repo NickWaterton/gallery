@@ -418,7 +418,7 @@ Once the text files have been created via AI, they can be edited as normal to ad
 
 **NOTE:** In order to use Google AI, you must have a Google AI `API KEY`. See below for how to obtain one. 
 
-### Obtain an API KEY`
+### Obtain an API KEY
 
 To obtain a Google AI API KEY, go to the following site https://aistudio.google.com/apikey log in with your Google Account (or create one), and click on `Create an API Key`. This will be for the Gemini API. Copy and save the API KEY generated for you in a file, and keep it safe.  
 The default file name for the API KEY in the `gallery` directory is `google_ai_api_key.txt` - if you save your API KEY to this file, then it will be automatically used. Alternatively, you can name the file whatever you wish, and reference it using the `-g` option on the command line. You can also pass the API KEY directly using the `-g` command line option.
