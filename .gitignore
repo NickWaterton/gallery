@@ -146,3 +146,6 @@ test.py
 /*.jpg
 /*.png
 token_file.txt
+*_api_key.txt
+google_ai_test.py
+google_ai*.*

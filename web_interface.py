@@ -14,6 +14,7 @@
 # V 2.0.3 7/4/25  NW refactored async_art_gallery_web.py and fixed sequential
 # V 2.0.4 12/4/25 NW fixed themes loading, and streamlined updates.
 # V 2.0.5 13/4/25 NW major refactoring
+# V 2.1.0 14/4/25 NW Added google AI to fill in image details if missing
 
 import quart_flask_patch
 import asyncio
@@ -30,7 +31,7 @@ from hypercorn.asyncio import serve
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 
-__version__ = '2.0.5'
+__version__ = '2.1.0'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -53,6 +54,7 @@ def parseargs():
                                                                 'united', 'vapour', 'yeti', 'zephyr', 'dark'],
                                          help='theme to apply to display (default: %(default)s))')
     parser.add_argument('-ph','--photographer', action="store", type=str, default="Paul Thompsen", help='default photographer to use (default: %(default)s))')
+    parser.add_argument('-g','--api_file', action="store", type=str, default="google_ai_api_key.txt", help='default google ai api key file to use, or google API_KEY (default: %(default)s))')
     parser.add_argument('-sf','--serif_font', action='store_true', default=False, help='use Serif Font for caption display (default: %(default)s))')
     parser.add_argument('-s','--sync', action='store_false', default=True, help='automatically syncronize (needs Pil library) (default: %(default)s))')
     parser.add_argument('-K','--kiosk', action='store_true', default=False, help='Show in Kiosk mode (default: %(default)s))')
@@ -71,23 +73,24 @@ class WebServer(monitor_and_display):
     
     def __init__(self,     ip,
                            folder,
-                           period=5,
-                           update_time=1440,
-                           display_for=120,
-                           include_fav=False,
-                           sync=True,
-                           matte='none',
-                           sequential=False,
-                           on=False,
-                           token_file=None,
-                           art_mode = False,
-                           port=5000,
-                           modal_size = '',
-                           photographer = None,
-                           theme = None,
-                           serif_font = False,
-                           exif = True,
-                           kiosk=False):
+                           period          = 5,
+                           update_time     = 1440,
+                           display_for     = 120,
+                           include_fav     = False,
+                           sync            = True,
+                           matte           = 'none',
+                           sequential      = False,
+                           on              = False,
+                           token_file      = None,
+                           art_mode        = False,
+                           port            = 5000,
+                           modal_size      = '',
+                           photographer    = None,
+                           theme           = None,
+                           serif_font      = False,
+                           exif            = True,
+                           kiosk           = False,
+                           api_key         = None):
         super().__init__(  ip,
                            folder,
                            period          = period,
@@ -109,12 +112,14 @@ class WebServer(monitor_and_display):
         self.theme = theme
         self.serif_font = serif_font
         self.kiosk = kiosk
+        self.api_key = api_key
         self.connected = set()
         self.exit = False
         self.text = {}
         self.screens = []
         self.ws_id = 0
         self.add_signals()
+        self.api_lock = asyncio.Lock()
         self.exif = ExifData(folder if exif else None, ip, self)
         self.app = Quart(__name__, static_folder=folder)
         self.bootstrap = Bootstrap5(self.app)
@@ -270,7 +275,7 @@ class WebServer(monitor_and_display):
         '''
         get html to send to caption or modal windows using macro filled in from text data
         '''
-        text = self.get_text(name, type=type)
+        text = await self.get_text(name, type=type)
         send_data = {'type':type, 'name': 'none'}
         if text:
             window = await self.get_template_attribute('macros.html', self.macro[type])
@@ -446,7 +451,7 @@ class WebServer(monitor_and_display):
                 return file
         return None
         
-    def get_text(self, file, type='modal'):
+    async def get_text(self, file, type='modal'):
         '''
         takes an image file name, finds corresponding text file.
         if data does not already exist in self.text and file has not been updated, reads the file from the static folder
@@ -454,35 +459,34 @@ class WebServer(monitor_and_display):
         returns None if file not found, or json is invalid and data not in the image exif data
         returns caption data or modal data built from the text or exif data
         '''
-        #default info
-        data = {"id": Path(file).with_suffix(""), "name": file}
-        text = {}
-        text_file = self.get_text_file_name(file)
-        if text_file:
-            try:
-                ts = self.get_last_updated(text_file)
-                if self.text.get(file,{}).get('timestamp') != ts:
-                    self.log.info('reading text file: {}'.format(text_file.name))
-                    text = self.app.json.loads(text_file.read_text())
-                    text['timestamp'] = ts
-                    self.text[file] = text
-                else:
-                    text = self.text.get(file,{})
-                self.log.debug('got text for image: {}: {}'.format(file, text))
-            except FileNotFoundError:
-                pass
-            except Exception as e:
-                self.log.warning('error: {}: {}'.format(e, text_file))
-        #Python 3.10 onwards only!
-        match type:
-            case 'modal':
-                text = self.get_modal_from_exif(file, text)
-            case 'caption':
+        # use lock to prevent multiple calls for modal and caption
+        async with self.api_lock:
+            #default info
+            data = {"id": Path(file).with_suffix(""), "name": file}
+            text = {}
+            text_file = self.get_text_file_name(file)
+            if text_file:
+                try:
+                    ts = self.get_last_updated(text_file)
+                    if self.text.get(file,{}).get('timestamp') != ts:
+                        self.log.info('reading text file: {}'.format(text_file.name))
+                        text = self.app.json.loads(text_file.read_text())
+                        self.update_reference_dict(file, text, ts)
+                    else:
+                        text = self.text.get(file,{})
+                    self.log.debug('got text for image: {}: {}'.format(file, text))
+                except FileNotFoundError:
+                    pass
+                except Exception as e:
+                    self.log.warning('error: {}: {}'.format(e, text_file))
+            #use AI to fill in missing details if we have api_key
+            text = await self.get_ai_description(self.get_modal_from_exif(file, text), file, text_file)
+            if type == 'caption':
                 text = self.get_caption_from_exif(file, text)
-        if text:
-            data.update(text)
-            return data
-        return None
+            if text:
+                data.update(text)
+                return data
+            return None
             
     def get_modal_from_exif(self, file, text):
         '''
@@ -495,17 +499,24 @@ class WebServer(monitor_and_display):
         location
         credit
         '''
-        modal = {}
-        modal['header'] = self.exif.get_title(file, text.get('header') or text.get('description'))
-        modal['description'] = self.exif.get_description(file, text.get('description'))
-        if modal['header'] and modal['description'] and modal['header'] == modal['description']:
-            modal['description'] = None
-        if modal['header']:
-            modal['details'] = self.html_markup(self.exif.get_user_comment(file, text.get('details')))
-            modal['time'] = self.exif.get_date_original(file, text.get('time'))
-            modal['location'] = self.exif.get_location(file, text.get('location'))
-            modal['credit'] = self.exif.get_credit(file, text.get('credit'))
-            return modal
+        try:
+            modal = {}
+            modal['header'] = self.exif.get_title(file, text.get('header') or text.get('description'))
+            modal['description'] = self.exif.get_description(file, text.get('description'))
+            if modal['header'] and modal['description'] and modal['header'] == modal['description']:
+                modal['description'] = None
+            if modal['header'] or self.api_key:
+                modal['details'] = self.html_markup(self.exif.get_user_comment(file, text.get('details')))
+                modal['time'] = self.exif.get_date_original(file, text.get('time'))
+                modal['location'] = self.exif.get_location(file, text.get('location'))
+                modal['credit'] = self.exif.get_credit(file, text.get('credit'))
+                #add default credit if missing
+                if not modal.get('credit'):
+                    location = modal.get('location','') or ''
+                    modal['credit'] = 'wildfoto.au' if 'australia' in location.lower() else 'unknown'
+                return modal
+        except Exception as e:
+            self.log.exception(e)
         return None
             
     def get_caption_from_exif(self, file, text):
@@ -539,9 +550,88 @@ class WebServer(monitor_and_display):
             self.log.exception(e)
         return None
         
-    def html_markup(self, text):
-        if text:
-            return text.replace('\n', '<br>')
+    def update_reference_dict(self, file, text, ts):
+        '''
+        update the quick reference dictionary for modals and display
+        '''
+        text['timestamp'] = ts
+        self.text[file] = text
+        
+    def save_text_file(self, text, text_file):
+        '''
+        save image description text file
+        '''
+        #add default fields or blank
+        text['time'] = text.get('time') or ''
+        text['location'] = text.get('location') or ''
+        text['photographer'] = text.get('photographer') or ''
+        text['credit'] = text.get('credit') or ''
+        text['caption'] = text.get('caption') or ''
+        self.log.info('writing new text file: {}'.format(text_file.name))
+        text_file.write_text(self.app.json.dumps(text, indent=2, sort_keys=True))
+            
+    async def get_ai_description(self, info, image_file, text_file):
+        '''
+        use google AI to fill in details, if we have an API KEY
+        '''
+        info = info or {}
+        if self.api_key and not info.get('details'):
+            image_file = Path(self.app.static_folder, image_file)
+            text_file = text_file or image_file.with_suffix(".TXT")
+            try:
+                from google import genai
+                from google.genai import types
+                image_bytes = image_file.read_bytes()
+                client = genai.Client(api_key=self.api_key)
+                response = await client.aio.models.generate_content(
+                    model='gemini-2.0-flash-001',
+                    contents=[
+                        'describe this image',
+                        'use text only inline html',
+                        'description is the latin name in html italics',
+                        'details should be 400 words or less and include behaviour, habitat and simple inline html',
+                        'if there are no animals, describe the scene',
+                        'do not include the location',
+                        'header should be a plain text caption for a picture with less than 45 characters',
+                        'do not include links',
+                        'file name is ()'.format(image_file.with_suffix("").name.replace('_',' ')),
+                        'location is {}'.format(info['location'] if info.get('location') else 'possibly Austrailia'), #use default location suggestion if missing
+                        '()'.format('subject is {}'.format(info['header'] if info.get('header') else '')),
+                        types.Part.from_bytes(data=image_bytes, mime_type=self.get_mime_type(image_file)),
+                    ],
+                    config=types.GenerateContentConfig(
+                        response_mime_type='application/json',
+                        response_schema={
+                            'required': [
+                                'header',
+                                'description',
+                                'details'
+                            ],
+                            'properties': {
+                                'header': {'type': 'STRING'},
+                                'description': {'type': 'STRING'},
+                                'details': {'type': 'STRING'}
+                            },
+                            'type': 'OBJECT',
+                        },
+                    )
+                )
+                self.log.info('Google AI info: {}'.format(response.text))
+                new_info = self.app.json.loads(response.text)
+                text = self.app.json.loads(text_file.read_text()) if text_file.is_file() else self.text.get(image_file.name,{})
+                updated = False
+                for k, v in new_info.items():
+                    if not text.get(k) and not info.get(k):
+                        text[k] = self.html_markup(new_info[k])
+                        info[k] = self.html_markup(new_info[k])
+                        updated = True
+                        self.log.debug('updating text_file: {} with {}'.format(text_file.name, new_info[k]))
+                if updated:
+                    self.save_text_file(text, text_file)
+                    self.update_reference_dict(image_file.name, text, self.get_last_updated(text_file))
+            except Exception as e:
+                self.log.warning(e)
+        return info
         
 async def main():
     args = parseargs()
@@ -563,13 +653,20 @@ async def main():
         log.warning('folder {} does not exist, exiting'.format(args.folder))
         sys.exit(1)
         
-    if args.kiosk:
-        log.info("Running in Kiosk mode")
-        
-    if args.theme:
-        log.info('using theme: {}'.format(args.theme))
-        
+    log.info("running in Kiosk mode: {}".format(args.kiosk))
+    log.info('using theme: {}'.format(args.theme))
     log.info('using serif font for caption: {}'.format(args.serif_font))
+    
+    #get google api_key for AI
+    if Path(args.api_file).is_file():
+        api_key = Path(args.api_file).read_text().replace('\n','')
+    elif args.api_file.upper().endswith('.TXT') or len(args.api_file) != 39:
+        api_key = None
+    else:
+        api_key = args.api_file
+        
+    if api_key:
+        log.info('Using Google AI to fill in image details if missing')
         
     web = WebServer( args.ip,
                      args.folder,
@@ -589,7 +686,8 @@ async def main():
                      theme           = args.theme,
                      serif_font      = args.serif_font,
                      exif            = args.exif,
-                     kiosk           = args.kiosk)
+                     kiosk           = args.kiosk,
+                     api_key         = api_key)
     
     await web.serve_forever(args.production)
 

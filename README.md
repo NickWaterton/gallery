@@ -143,10 +143,10 @@ nick@raspberrypi:~/Scripts/gallery $ ./web_interface.py -h
 usage: web_interface.py [-h] [-p PORT] [-f FOLDER] [-m MATTE] [-t TOKEN_FILE] [-u UPDATE] [-c CHECK] [-d DISPLAY_FOR]
                         [-mo {modal-sm,modal-lg,modal-xl,modal-fullscreen,modal-fullscreen-sm-down,modal-fullscreen-md-down,modal-fullscreen-lg-down,modal-fullscreen-xl-down,modal-fullscreen-xxl-down}]
                         [-th {None,cerulian,cosmo,cyborg,darkly,flatly,journal,litera,lumen,lux,materia,minty,morph,pulse,quartz,sandstone,simplex,sketchy,slate,solar,spacelab,suerhero,united,vapour,yeti,zephyr,dark}]
-                        [-ph PHOTOGRAPHER] [-sf] [-s] [-K] [-P] [-A] [-S] [-O] [-F] [-X] [-D]
+                        [-ph PHOTOGRAPHER] [-g API_FILE] [-sf] [-s] [-K] [-P] [-A] [-S] [-O] [-F] [-X] [-D]
                         ip
 
-Async Art gallery for Samsung Frame TV Version: 2.0.0
+Async Art gallery for Samsung Frame TV Version: 2.1.0
 
 positional arguments:
   ip                    ip address of TV (default: None))
@@ -172,6 +172,8 @@ options:
                         theme to apply to display (default: None))
   -ph PHOTOGRAPHER, --photographer PHOTOGRAPHER
                         default photographer to use (default: Paul Thompsen))
+  -g API_FILE, --api_file API_FILE
+                        default google ai api key file to use, or google API_KEY (default: google_ai_api_key.txt))
   -sf, --serif_font     use Serif Font for caption display (default: False))
   -s, --sync            automatically syncronize (needs Pil library) (default: True))
   -K, --kiosk           Show in Kiosk mode (default: False))
@@ -361,15 +363,15 @@ The text file has to be given the same name as the image file, with a `.TXT` or 
 
 The text files are in json format, with the following layout:
 ```json
-{   
-    "header"        : "Crimson Finch at Fogg Dam",
-    "description"   : "<i>Neochmia phaeton</i>",
-    "details"       : "The <b>Crimson Finch</b> is a species of bird in the family <i>Estrildidae</i>. It is found throughout Northern Australia as well as parts of southern New Guinea.<br>Crimson finches feature a distinctively bright crimson coat and are known for their aggression.",
-    "time"          : "",
-    "location"      : "",
-    "credit"        : "wildfoto.au",
-    "caption"       : "Crimson Finch at Fogg Dam",
-    "photographer"  : "Paul Thompsen" 
+{
+  "caption": "Crimson Finch at Fogg Dam",
+  "credit": "wildfoto.au",
+  "description": "<i>Neochmia phaeton</i>",
+  "details": "The Crimson Finch, <i>Neochmia phaeton</i>, also known as the Blood Finch, is a small passerine bird native to northern Australia and parts of New Guinea. It is easily recognized by its vibrant red plumage, particularly in males, which are a deep, brilliant crimson. Females tend to have a duller, brownish-red coloration. Both sexes have a black belly and tail. <br><br>Crimson Finches are commonly found in tropical and subtropical habitats, favoring areas near water sources like rivers, swamps, and lagoons. They construct dome-shaped nests from grass and other plant materials, typically placed in dense vegetation or low shrubs near water. Their diet consists mainly of grass seeds, which they forage for in flocks. These social birds are often seen in pairs or small groups and are known for their cheerful chirping calls. The finches are relatively small, measuring around 10-13 cm in length. They play a role in seed dispersal within their <i>habitat</i>, contributing to the health and biodiversity of the <i>ecosystem</i>.",
+  "header": "Crimson Finch perched on a branch",
+  "location": "",
+  "photographer": "Paul Thompsen",
+  "time": ""
 }
 ```
 The only mandatory fields are `"header"` and `"details"`, the rest are optional.  
@@ -408,5 +410,22 @@ Like this:
 ![Windows Edit](screens/windows.png?raw=true "Windows Edit")
 
 This means that it is possible to edit this information on the `.jpg` files in Windows, and thus not need a `.TXT` file at all. If you are having other people submit photographs for your gallery, you should have them edit this information into the files first.
+
+## AI Support
+
+Google AI support is included for automatically filling in the text files, using the data in the image, and the file name. If the `details` field is missing from the text file (or Exif data), or no text file exists, then Google AI will be automatically called to fill in the details. The location, filename and image are used to generate the text that will be displayed, so it is helpful to make the filename descriptive - `Brolga_wading.jpg` is better than `IMG_0256.jpg` for example.  
+Once the text files have been created via AI, they can be edited as normal to add additional information (such as `credit`, `photographer` etc), or correct errors. `time` and `location` are automatically read from the image file, so you should leave these blank, unless the information is missing from the image file (Exif GPS info missing for example).  
+
+**NOTE:** In order to use Google AI, you must have a Google AI `API KEY`. See below for how to obtain one. 
+
+### Obtain an API KEY`
+
+To obtain a Google AI API KEY, go to the following site https://aistudio.google.com/apikey log in with your Google Account (or create one), and click on `Create an API Key`. This will be for the Gemini API. Copy and save the API KEY generated for you in a file, and keep it safe.  
+The default file name for the API KEY in the `gallery` directory is `google_ai_api_key.txt` - if you save your API KEY to this file, then it will be automatically used. Alternatively, you can name the file whatever you wish, and reference it using the `-g` option on the command line. You can also pass the API KEY directly using the `-g` command line option.
+
+### Rate Limits
+
+Consult your *Google AI Studio* account page for applicable rate limits for the Free tier, and to check your usage. The text files are written to the `images` directory, so AI is only used once per image, and are loaded on demand, so rate limits should not be an issue, and with a reasonable number of images, the free daily quota should not be exceeded.  
+See https://aistudio.google.com/plan_information for your rate limits, and current tier (usually Free, unless you add billing information). Click on `View Usage data` to see your current usage vs limits.  
 
 If you use and like this library for art mode, [Buy me a coffee](https://paypal.me/NWaterton).

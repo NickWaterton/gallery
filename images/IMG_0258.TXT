@@ -1,7 +1,10 @@
-{   
-    "header"        : "This is snowy trees 4",
-    "description"   : "This is a scene with snowy trees 4",
-    "details"       : "This Scene shows a winter landscape with snowy trees 4",
-    "photographer"  : "Unknown"
-
+{
+  "caption": "",
+  "credit": "",
+  "description": "A watercolor painting of a row of coniferous trees, also called <i>Pinophyta</i>.",
+  "details": "This image features a series of watercolor depictions of coniferous trees. The trees exhibit variations in color, ranging from lush greens to warmer browns and golds. The texture of the watercolor adds depth to the foliage, giving it a soft, organic feel. <br><br>Coniferous trees, or <i>Pinophyta</i>, are a diverse group of plants that include some of the tallest, largest, and oldest trees on Earth. They are typically evergreen, retaining their leaves throughout the year, although some species are deciduous. The leaves are usually needle-like or scale-like. Conifers are adapted to a wide range of climates and are found in many parts of the world, from cold, mountainous regions to warmer, temperate zones. They play a crucial role in their ecosystems, providing habitat and food for wildlife, stabilizing soil, and contributing to air and water quality. <br><br>In a real-world setting, these trees are well-adapted to a variety of habitats and play a crucial role in the ecosystem.",
+  "header": "Watercolor Coniferous Trees",
+  "location": "",
+  "photographer": "",
+  "time": ""
 }

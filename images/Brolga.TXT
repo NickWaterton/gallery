@@ -1,8 +1,10 @@
-{   
-    "header"        : "Brolga",
-    "description"   : "<i>Antigone rubicunda</i>",
-    "details"       : "The <b>brolga</b>, formerly known as the native companion, is a bird in the crane family. It has also been given the name Australian crane, a term coined in 1865 by well-known ornithologist John Gould in his Birds of Australia.<br>The brolga is a common, gregarious wetland bird species of tropical and south-eastern Australia and New Guinea. It is a tall, upright bird with a small head, long beak, slender neck, and long legs. Its plumage is mainly grey, with black wing tips, and it has an orange-red band on its head. The brolga's courting dance is similar to that of other cranes. The nest is built of wetland vegetation, either on an elevated piece of land or floating on shallow water in marshland, and usually two eggs are laid. Incubation takes 32 days, and the newly hatched young are precocial. The adult diet is omnivorous and includes plant matter, invertebrates, and small vertebrates.",
-    "time"          : "",
-    "location"      : "",
-    "credit"        : "wildfoto.au"
+{
+  "caption": "",
+  "credit": "",
+  "description": "<i>Antigone rubicunda</i>",
+  "details": "The brolga, <i>Antigone rubicunda</i>, is a large grey crane native to Australia and New Guinea. It is known for its elaborate courtship dances which involve calls, struts, leaps, and the tossing of grass. These dances strengthen pair bonds. Brolgas are highly social, often found in flocks of up to several hundred birds, especially outside of breeding season. They are usually seen in wetlands, grasslands, and agricultural areas. Brolgas are omnivorous, feeding on plants, seeds, invertebrates, and small vertebrates. They use their long bills to probe in mud and shallow water for food. They are generally non-migratory, but they may move locally in response to rainfall and food availability. Habitat loss and degradation are major threats to the brolga. They can be identified by their grey plumage, red head, and long, slender legs.",
+  "header": "Two Brolgas in Water",
+  "location": "",
+  "photographer": "",
+  "time": ""
 }

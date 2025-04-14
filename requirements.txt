@@ -5,3 +5,5 @@ geopy==2.4.1
 pillow>=10.3.0
 Quart>=0.20.0
 quart-flask-patch>=0.3.0
+# AI
+google-genai>=1.10.0

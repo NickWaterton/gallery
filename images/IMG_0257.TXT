@@ -1,7 +1,10 @@
-{   
-    "header"        : "This is snowy trees 2",
-    "description"   : "This is a scene with snowy trees 2",
-    "details"       : "This Scene shows a winter lanscape with snowy trees 2",
-    "caption"       : "Snowy Fir Trees in a Canadian Forest",
-    "photographer"  : "Unknown"
+{
+  "caption": "",
+  "credit": "",
+  "description": "<i>Picea abies</i>",
+  "details": "The image depicts a watercolor painting of several evergreen trees, likely spruce or fir, laden with snow. The trees vary in size and shape, creating a natural, uneven skyline. Each tree is rendered with a painterly style, with visible brushstrokes and a blend of green, white, and brown hues to convey the texture of the foliage and the depth of the snow cover. The background is a soft, neutral color that highlights the trees. The overall impression is one of tranquility and the stillness of winter. These trees are adapted to cold climates and are known for their conical shape and ability to withstand heavy snow loads. They are important for providing shelter and food for various wildlife species during the winter months. In winter, these trees can experience heavy snowfall, leading to adaptations such as flexible branches that bend but do not break under the weight of snow. This type of tree is an integral part of many forest ecosystems, supporting a variety of life from insects to large mammals.",
+  "header": "Watercolor Painting of Snow Covered Trees",
+  "location": "",
+  "photographer": "",
+  "time": ""
 }

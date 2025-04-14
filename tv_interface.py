@@ -86,6 +86,29 @@ class helpers:
             if count % (total//10) == 0:
                 self.log.info('{}% complete'.format(percent))
                 
+    def html_markup(self, text):
+        if text:
+            return text.replace('\n', '<br>')
+            
+    def get_mime_type(self, filename):
+        '''
+        return mime type
+        '''
+        match filename.suffix:
+            case '.jpg':
+                mime_type='image/jpeg'
+            case '.jpeg':
+                mime_type='image/jpeg'
+            case '.png':
+                mime_type='image/png'
+            case '.bmp':
+                mime_type='image/bmp'
+            case '.tif':
+                mime_type='image/tiff'
+            case _:
+                mime_type='image/jpeg'
+        return mime_type
+                
     def read_file(self, filename):
         '''
         read image file, return file binary data and file type

@@ -323,7 +323,7 @@ class ExifData:
         return user comments
         '''
         comments = default or self.get_key(file, ['UserComment', 'XPComment'])
-        if comments.startswith("ASCII"):
+        if comments and comments.startswith("ASCII"):
             return comments.replace('ASCII','')
         return comments
         

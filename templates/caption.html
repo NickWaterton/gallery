@@ -87,7 +87,10 @@
     function updateCaption(name, text) {  
         if (name !='none') {
             document.getElementById('caption').innerHTML=text
-            console.log("Displaying caption for: ", name);
+            console.log("Displaying caption for: ", name)
+        } else {
+            document.getElementById('caption').innerHTML=''
+            console.log("Blanking caption display")
         }
     }
     

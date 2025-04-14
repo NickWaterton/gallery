@@ -1,0 +1,10 @@
+{
+  "caption": "",
+  "credit": "",
+  "description": "<i>Anas platyrhynchos</i>",
+  "details": "The image features two Mallard ducks, <i>Anas platyrhynchos</i>, foraging for food along the edge of a body of water. One duck, with its head fully submerged, is actively searching for food beneath the water's surface. The other duck is visible beside it, also pecking near the water's edge, likely consuming food items scattered on the rock. Mallards are dabbling ducks, known for their feeding behavior where they tip forward and submerge their heads to reach aquatic vegetation and small invertebrates. Their diet is highly versatile, including seeds, plants, and various invertebrates. Mallards are commonly found in wetlands, ponds, and lakes across North America and Europe. They exhibit a wide range of social behaviors, from foraging in groups to elaborate courtship displays. The habitat provides the ducks with easy access to both land and water resources, which are crucial for their survival and breeding.",
+  "header": "Mallards at Waters Edge",
+  "location": "",
+  "photographer": "",
+  "time": ""
+}

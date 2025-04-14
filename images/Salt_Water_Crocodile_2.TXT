@@ -1,8 +1,10 @@
-{   
-    "header"        : "Saltwater crocodile",
-    "description"   : "<i>Crocodylus porosus</i>",
-    "details"       : "The <b>saltwater crocodile</b> is a crocodilian native to saltwater habitats, brackish wetlands and freshwater rivers from India's east coast across Southeast Asia and the Sundaland to northern Australia and Micronesia. It has been listed as Least Concern on the IUCN Red List since 1996. It was hunted for its skin throughout its range up to the 1970s, and is threatened by illegal killing and habitat loss. It is regarded as dangerous to humans.<br>The saltwater crocodile is the largest living reptile. Males can grow up to a weight of 1,000–1,500 kg (2,200–3,300 lb) and a length of 6 m (20 ft), rarely exceeding 6.3 m (21 ft).[6][7] Females are much smaller and rarely surpass 3 m (9.8 ft).[8][9] It is also called the estuarine crocodile, Indo-Pacific crocodile, marine crocodile, sea crocodile, and, informally, the saltie.",
-    "time"          : "",
-    "location"      : "",
-    "credit"        : "wildfoto.au"
+{
+  "caption": "",
+  "credit": "",
+  "description": "<i>Crocodylus porosus</i>",
+  "details": "The saltwater crocodile (<i>Crocodylus porosus</i>) is the largest living reptile and crocodilian species on Earth. Males can reach lengths of up to 7 meters (23 ft) and weigh over 1,000 kg (2,200 lbs). Females are typically smaller, reaching lengths of up to 4 meters (13 ft). These crocodiles are opportunistic apex predators, capable of preying on a wide variety of animals, including fish, turtles, birds, and mammals. They are known for their aggressive behavior, especially during the breeding season. Saltwater crocodiles are found in coastal regions and estuarine environments of eastern India, Southeast Asia, northern Australia, and some Pacific Islands. They prefer habitats such as mangrove swamps, river deltas, and tidal creeks. They play a crucial role in maintaining the ecological balance of their habitats.",
+  "header": "Saltwater Crocodile",
+  "location": "",
+  "photographer": "",
+  "time": ""
 }

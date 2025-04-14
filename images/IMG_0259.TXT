@@ -1,8 +1,10 @@
-{   
-    "header"        : "These are Trees covered in Snow",
-    "description"   : "Snowy Fir trees",
-    "details"       : "This scene shows a winter landscape with snowy trees",
-    "time"          : "Afternoon",
-    "location"      : "Ontario, Canada",
-    "photographer"  : "Unknown"
+{
+  "caption": "",
+  "credit": "",
+  "description": "A watercolor illustration of evergreen trees in the snow",
+  "details": "The image is a watercolor painting depicting a group of evergreen trees, likely firs or pines, standing in a snowy landscape. The trees are rendered in varying shades of green and brown, with white highlights suggesting snow accumulation on their branches. The style is loose and painterly, with visible brushstrokes and soft edges giving a sense of depth and texture. <br><br>The overall mood is serene and peaceful, evoking a sense of winter tranquility. The neutral background color helps to highlight the darker tones of the trees and snow. While the specific species of the trees cannot be identified with certainty due to the artistic style, they appear to be coniferous trees commonly found in colder climates. These trees <i>(Pinus spp.</i> and <i>Abies spp.</i>) are adapted to survive in harsh environments with cold temperatures and heavy snowfall. They typically have a conical shape, which allows them to shed snow easily, preventing branch breakage. Coniferous forests provide habitat for a variety of wildlife, including birds, mammals, and insects, and play an important role in regulating water cycles and preventing soil erosion.",
+  "header": "Winter Trees",
+  "location": "",
+  "photographer": "",
+  "time": ""
 }

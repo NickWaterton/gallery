@@ -1,9 +1,10 @@
-{   
-    "header"        : "This is snowy trees 3",
-    "description"   : "This is a scene with snowy trees 3",
-    "details"       : "This Scene shows a winter landscape with snowy trees 3",
-    "time"          : "",
-    "location"      : "",
-    "photographer"  : "Unknown"
-
+{
+  "caption": "",
+  "credit": "",
+  "description": "A winter landscape painting featuring a snowy forest.",
+  "details": "The scene depicts a serene winter landscape dominated by a dense forest of evergreen trees, possibly of the genus <i>Pinus</i>. The trees are rendered in varying shades of brown and green, suggesting depth and texture within the forest. A soft, diffused light filters through the scene, creating a muted and ethereal atmosphere. Snowflakes are falling gently, adding to the tranquility of the setting. The ground is covered with a blanket of snow, and low-lying shrubs are visible beneath the trees. The overall impression is one of peace and stillness, capturing the quiet beauty of a snowy forest in winter.",
+  "header": "Winter Forest",
+  "location": "",
+  "photographer": "",
+  "time": ""
 }
