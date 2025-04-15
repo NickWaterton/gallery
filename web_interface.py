@@ -563,6 +563,9 @@ class WebServer(monitor_and_display):
         save image description text file
         '''
         #add default fields or blank
+        text['header'] = text.get('header') or ''
+        text['description'] = text.get('description') or ''
+        text['details'] = text.get('details') or ''
         text['time'] = text.get('time') or ''
         text['location'] = text.get('location') or ''
         text['photographer'] = text.get('photographer') or ''
@@ -576,7 +579,7 @@ class WebServer(monitor_and_display):
         use google AI to fill in details, if we have an API KEY
         '''
         info = info or {}
-        if self.api_key and not info.get('details'):
+        if self.api_key and (not info.get('details') or not info.get('header')):
             image_file = Path(self.app.static_folder, image_file)
             text_file = text_file or image_file.with_suffix(".TXT")
             try:
