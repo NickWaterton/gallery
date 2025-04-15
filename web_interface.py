@@ -513,8 +513,8 @@ class WebServer(monitor_and_display):
                 modal['credit'] = self.exif.get_credit(file, text.get('credit'))
                 #add default credit if missing
                 if not modal.get('credit'):
-                    byline = self.exif.get_byline(file, text.get('photographer', self.photographer)) or ''
-                    modal['credit'] = 'wildfoto.au' if all(val in byline.lower() for val in ['paul', 'thompsen']) else 'unknown'
+                    photographer = self.exif.get_photographer(file, text.get('photographer', '').strip() or self.photographer) or ''
+                    modal['credit'] = 'wildfoto.au' if all(val in photographer.lower() for val in ['paul', 'thompsen']) else 'unknown'
                 return modal
         except Exception as e:
             self.log.exception(e)
@@ -543,7 +543,7 @@ class WebServer(monitor_and_display):
             caption['title'] = self.exif.get_title(file, text.get('caption') or text.get('header') or text.get('description'))
             if caption['title']:
                 caption['location'] =  self.exif.get_caption_location(file, text.get('location'))
-                caption['byline'] = self.exif.get_byline(file, text.get('photographer', self.photographer))
+                caption['byline'] = self.exif.get_byline(file, text.get('photographer', '').strip() or self.photographer)
                 caption['camera'] = self.exif.get_camera(file)
                 caption['settings'] = self.exif.get_settings(file)
                 return caption
