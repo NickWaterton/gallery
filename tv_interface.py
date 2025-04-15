@@ -2,14 +2,9 @@
 # abstract frame TV interface
 
 import logging
-from pathlib import Path
-import sys
-import io
-import random, string
 import asyncio
-import time
-import datetime
-from PIL import Image, ImageFilter, ImageChops
+
+from helpers import helpers
 
 from samsungtvws.async_art import SamsungTVAsyncArt
 from samsungtvws.async_remote import SamsungTVWSAsyncRemote
@@ -17,207 +12,18 @@ from samsungtvws.remote import SendRemoteKey
 from samsungtvws import __version__
 
 logging.basicConfig(level=logging.INFO)
-
-class helpers:
-    
-    allowed_ext = ['jpg', 'jpeg', 'png', 'bmp', 'tif']
-    
-    def __init__(self, folder=None):
-        self.log = logging.getLogger('Main.'+__class__.__name__)
-        self.debug = self.log.getEffectiveLevel() <= logging.DEBUG
-        self.folder = folder
-        self.exit = False
-        self.timers = {}
-        
-    async def wait_seconds(self, duration=1):
-        '''
-        pause for specific duration (seconds) while allowing exit
-        '''
-        name = ''.join(random.choice(string.ascii_letters) for x in range(12))
-        self.timers[name] = time.time()
-        while time.time() - self.timers[name] < duration and not self.exit:
-            await asyncio.sleep(1)
-        self.timers.pop(name)
-        
-    def format_files(self, files):
-        '''
-        format list for logging if Path or string:
-        '''
-        return [file.name if isinstance(file, Path) else file for file in files]
-        
-    def get_folder_files(self, path=False):
-        '''
-        returns list of files names (str) or Path (if path is True) in folder if extension matches allowed image types
-        '''
-        return [f if path else f.name for f in self.folder.iterdir() if f.is_file() and self.get_file_type(f) in self.allowed_ext]
-        
-    def get_time(self, sec):
-        '''
-        returns seconds as timedelta for display as h:m:s
-        '''
-        return datetime.timedelta(seconds = sec)
-        
-    def get_suffix(self, filename):
-        '''
-        get suffix without '.' or ''
-        '''
-        return filename.suffix[1:].lower()
-        
-    def get_last_updated(self, filename):
-        '''
-        get last updated timestamp for file
-        '''
-        #return Path(self.folder, filename).stat().st_mtime
-        try:
-            return filename.stat().st_mtime
-        except Exception as e:
-            self.log.exception(e)
-            
-    async def wait_for_files(self, files):
-        #wait for files to arrive
-        await self.wait_seconds(min(10, 5 * len(files)))
-        
-    def log_progress(self, total, count):
-        '''
-        log % progress every 10% if this will take a while
-        '''
-        if total >= 1000:
-            percent = min(100,(count*100)//total)
-            if count % (total//10) == 0:
-                self.log.info('{}% complete'.format(percent))
-                
-    def html_markup(self, text):
-        if text:
-            return text.replace('\n', '<br>')
-            
-    def get_mime_type(self, filename):
-        '''
-        return mime type
-        '''
-        match filename.suffix:
-            case '.jpg':
-                mime_type='image/jpeg'
-            case '.jpeg':
-                mime_type='image/jpeg'
-            case '.png':
-                mime_type='image/png'
-            case '.bmp':
-                mime_type='image/bmp'
-            case '.tif':
-                mime_type='image/tiff'
-            case _:
-                mime_type='image/jpeg'
-        return mime_type
-                
-    def read_file(self, filename):
-        '''
-        read image file, return file binary data and file type
-        '''
-        try:
-            file_data = Path(filename).read_bytes()
-            file_type = self.get_file_type(filename)
-            return file_data, file_type
-        except Exception as e:
-            self.log.error('Error reading file: {}, {}'.format(filename, e))
-        return None, None
-                
-    def are_images_equal(self, my_data, img2):
-        '''
-        rough check if images are similar using PIL (avoid numpy which is faster)
-        '''
-        img1 = Image.open(io.BytesIO(my_data))
-        img1 = img1.convert('L').resize((384, 216)).filter(ImageFilter.GaussianBlur(radius=4))
-        img2 = img2.convert('L').resize((384, 216)).filter(ImageFilter.GaussianBlur(radius=4))
-        img3 = ImageChops.difference(img1, img2)    #updated 11/3/25 per suggestion in issue #11
-        diff = sum(list(img3.getdata()))/(384*216)  #normalize
-        equal_content = diff <= 5.0                 #pick a threshhold
-        self.log.debug('equal_content: {}, diff: {}'.format(equal_content, round(diff, 2)))
-        return equal_content, diff
-        
-    def get_file_type(self, filename, image_data=None):
-        '''
-        try to figure out what kind of image file is, starting with the extension
-        use PIL if available to check
-        fix the file type if it's wrong
-        '''
-        try:
-            file_type = self.get_suffix(filename)
-            if file_type in self.allowed_ext:
-                file_type = self.fix_file_type(filename, file_type, image_data)
-                return file_type
-        except Exception as e:
-            self.log.error('Error reading file: {}, {}'.format(filename, e))
-        return None
-        
-    def fix_file_type(self, filename, file_type, image_data=None):
-        '''
-        check file type if we have PIL
-        '''
-        if file_type:
-            org = file_type
-            file_type = Image.open(filename).format.lower() if not image_data else image_data.format.lower()
-            if file_type in['jpg', 'jpeg', 'mpo']:
-                file_type = 'jpeg'
-            if not (org == file_type or (org == 'jpg' and file_type == 'jpeg')):
-                self.log.warning('file {} type changed from {} to {}'.format(filename, org, file_type))
-        return file_type
-        
-    def next_value(self, value, lst):
-        '''
-        get next value from list, or return first element
-        return None if list is empty
-        '''
-        return lst[(lst.index(value)+1) % len(lst)] if value in lst else lst[0] if lst else None
-        
-    def load_files(self):
-        '''
-        reads folder files, and returns dictionary of filenames and binary data
-        only used if PIL is installed
-        '''
-        files = self.get_folder_files(True)
-        self.log.info('loading files: {}'.format(self.format_files(files)))
-        files_images = self.get_files_dict(files)
-        self.log.info('loaded: {}'.format(self.format_files(files_images.keys())))
-        return files_images
-        
-    def get_files_dict(self, files):
-        '''
-        makes a dictionary of filename and file binary data
-        warns if file type given by extension is wrong
-        only used if PIL is installed
-        '''
-        files_images = {}
-        for file in files:
-            try:
-                data = Image.open(file)
-                format = self.get_file_type(file, data)
-                if not (self.get_suffix(file) == format or (format=='jpeg' and self.get_suffix(file) == 'jpg')):
-                    self.log.warning('file: {} is of type {}, the extension is wrong! please fix this'.format(file.name, format))
-                files_images[file] = data
-            except Exception as e:
-                self.log.warning('Error loading: {}, {}'.format(file, e))
-        return files_images
-        
-    def update_uploaded_files(self, filename, content_id, uploaded_files={}):
-        '''
-        update dictionary with filename
-        '''
-        uploaded_files.pop(filename.name, None)
-        if content_id:
-            uploaded_files[filename.name] = {'content_id': content_id, 'modified':self.get_last_updated(filename)}
-        return uploaded_files
              
 class TVInterface(helpers):
     
     def __init__(self, ip, token_file='./token_file.txt', folder='./images', art_mode=False):
         self.log = logging.getLogger('Main.'+__class__.__name__)
         self.debug = self.log.getEffectiveLevel() <= logging.DEBUG
-        super().__init__(Path(folder))
+        super().__init__(folder)
         self.ip = ip
         # Autosave token to file
-        self.token_file = Path(token_file) if token_file else token_file
+        self.token_file = self.get_Path(token_file) if token_file else token_file
         self.art_mode = art_mode
-        self.folder = Path(folder)
+        self.folder = folder
         self.art_task = None
         self.api_version = 0
         self.exit = False
@@ -453,4 +259,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        sys.exit()
+        pass

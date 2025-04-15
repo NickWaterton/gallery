@@ -26,27 +26,21 @@ It is loaded by the web_interface.py program
 '''
 
 import logging
-from pathlib import Path
-import sys
-import random
 import json
 import asyncio
 import time
 
-from samsungtvws import __version__
 from tv_interface import TVInterface
 
 logging.basicConfig(level=logging.INFO)
              
 class monitor_and_display(TVInterface):
         
-    #allowed_ext = ['jpg', 'jpeg', 'png', 'bmp', 'tif']
-    
     def __init__(self, ip, folder, period=5, update_time=1440, display_for=120, include_fav=False, sync=True, matte='none', sequential=False, on=False, token_file=None, art_mode=False):
         self.log = logging.getLogger('Main.'+__class__.__name__)
         self.debug = self.log.getEffectiveLevel() <= logging.DEBUG
         super().__init__(ip, token_file, folder, art_mode)
-        self.folder = Path(folder)
+        self.folder = folder
         self.update_time = int(max(0, update_time*60))   #convert minutes to seconds
         self.period = min(max(5, period), self.update_time, display_for) if self.update_time > 0 else period
         self.display_for = display_for
@@ -55,7 +49,7 @@ class monitor_and_display(TVInterface):
         self.matte = matte
         self.sequential = sequential
         self.on = on
-        self.program_data_path = Path('./uploaded_files.json')
+        self.program_data_path = self.get_Path('./uploaded_files.json')
         self.uploaded_files = {}
         self.fav = set()
         self.start = time.time()
@@ -239,7 +233,7 @@ class monitor_and_display(TVInterface):
         '''
         content_ids = [id for id in self.get_content_ids() if id != self.current_content_id]
         if content_ids:
-            content_id = self.next_value(self.current_content_id, self.get_content_ids()) if self.sequential else random.choice(content_ids)
+            content_id = self.next_value(self.current_content_id, self.get_content_ids()) if self.sequential else self.random_choice(content_ids)
             return content_id
         return None
         
@@ -358,4 +352,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        sys.exit()
+        pass

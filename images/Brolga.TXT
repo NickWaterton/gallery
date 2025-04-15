@@ -1,9 +1,9 @@
 {
   "caption": "",
   "credit": "",
-  "description": "<i>Antigone rubicunda</i>",
-  "details": "The brolga, <i>Antigone rubicunda</i>, is a large grey crane native to Australia and New Guinea. It is known for its elaborate courtship dances which involve calls, struts, leaps, and the tossing of grass. These dances strengthen pair bonds. Brolgas are highly social, often found in flocks of up to several hundred birds, especially outside of breeding season. They are usually seen in wetlands, grasslands, and agricultural areas. Brolgas are omnivorous, feeding on plants, seeds, invertebrates, and small vertebrates. They use their long bills to probe in mud and shallow water for food. They are generally non-migratory, but they may move locally in response to rainfall and food availability. Habitat loss and degradation are major threats to the brolga. They can be identified by their grey plumage, red head, and long, slender legs.",
-  "header": "Two Brolgas in Water",
+  "description": "Two brolgas wading in shallow water. One is bending down to drink or feed.",
+  "details": "This image captures two Brolgas, <i>Antigone rubicunda</i>, wading in shallow water. These large, graceful birds are native to Australia and New Guinea. They are easily recognized by their grey plumage, long legs, and the distinctive red skin on their heads. Brolgas are often found in wetlands, swamps, and grasslands, where they forage for food. Their diet mainly consists of plants, seeds, insects, and small vertebrates. <br><br>Brolgas are known for their elaborate courtship dances, which involve wing flapping, jumping, and calling. These dances can be performed by pairs or groups of birds, and they strengthen social bonds within the flock. They build large nests on the ground near water and usually lay two eggs per clutch. Both parents participate in incubating the eggs and caring for the young. Brolgas are social birds and typically live in flocks, especially during the non-breeding season. They communicate with each other through a variety of calls and displays. The conservation status of Brolgas varies across different regions, with some populations facing threats from habitat loss, hunting, and introduced predators.",
+  "header": "Pair of Brolgas",
   "location": "",
   "photographer": "",
   "time": ""

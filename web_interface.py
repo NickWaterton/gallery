@@ -15,6 +15,7 @@
 # V 2.0.4 12/4/25 NW fixed themes loading, and streamlined updates.
 # V 2.0.5 13/4/25 NW major refactoring
 # V 2.1.0 14/4/25 NW Added google AI to fill in image details if missing
+# V 2.1.1 15/4/25 NW General tidy up
 
 import quart_flask_patch
 import asyncio
@@ -31,7 +32,7 @@ from hypercorn.asyncio import serve
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 
-__version__ = '2.1.0'
+__version__ = '2.1.1'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -120,7 +121,7 @@ class WebServer(monitor_and_display):
         self.ws_id = 0
         self.add_signals()
         self.api_lock = asyncio.Lock()
-        self.exif = ExifData(folder if exif else None, ip, self)
+        self.exif = ExifData(folder if exif else None, ip)
         self.app = Quart(__name__, static_folder=folder)
         self.bootstrap = Bootstrap5(self.app)
         if self.theme != 'dark':    #dark is not an actual theme, but a manual setting
@@ -512,8 +513,8 @@ class WebServer(monitor_and_display):
                 modal['credit'] = self.exif.get_credit(file, text.get('credit'))
                 #add default credit if missing
                 if not modal.get('credit'):
-                    location = modal.get('location','') or ''
-                    modal['credit'] = 'wildfoto.au' if 'australia' in location.lower() else 'unknown'
+                    byline = self.exif.get_byline(file, text.get('photographer', self.photographer)) or ''
+                    modal['credit'] = 'wildfoto.au' if all(val in byline.lower() for val in ['paul', 'thompsen']) else 'unknown'
                 return modal
         except Exception as e:
             self.log.exception(e)
@@ -530,7 +531,7 @@ class WebServer(monitor_and_display):
         ExposureTime, FNumber (or ApertureValue) and ISOSpeedRatings for settings
         
         caption values are:
-        title: 'caption' in text file
+        title: 'caption' or 'header' or 'description' in text file
         location
         byline
         camera
@@ -539,7 +540,7 @@ class WebServer(monitor_and_display):
         try:
             caption = {}
             #get values from exif or defaults from text file
-            caption['title'] = self.exif.get_title(file, text.get('header') or text.get('description'))
+            caption['title'] = self.exif.get_title(file, text.get('caption') or text.get('header') or text.get('description'))
             if caption['title']:
                 caption['location'] =  self.exif.get_caption_location(file, text.get('location'))
                 caption['byline'] = self.exif.get_byline(file, text.get('photographer', self.photographer))
@@ -581,7 +582,7 @@ class WebServer(monitor_and_display):
             try:
                 from google import genai
                 from google.genai import types
-                image_bytes = image_file.read_bytes()
+                image = self.get_PIL_image(image_file)
                 client = genai.Client(api_key=self.api_key)
                 response = await client.aio.models.generate_content(
                     model='gemini-2.0-flash-001',
@@ -597,7 +598,8 @@ class WebServer(monitor_and_display):
                         'file name is ()'.format(image_file.with_suffix("").name.replace('_',' ')),
                         'location is {}'.format(info['location'] if info.get('location') else 'possibly Austrailia'), #use default location suggestion if missing
                         '()'.format('subject is {}'.format(info['header'] if info.get('header') else '')),
-                        types.Part.from_bytes(data=image_bytes, mime_type=self.get_mime_type(image_file)),
+                        '()'.format('description is {}'.format(info['description'] if info.get('description') else '')),
+                        image
                     ],
                     config=types.GenerateContentConfig(
                         response_mime_type='application/json',
@@ -656,6 +658,7 @@ async def main():
     log.info("running in Kiosk mode: {}".format(args.kiosk))
     log.info('using theme: {}'.format(args.theme))
     log.info('using serif font for caption: {}'.format(args.serif_font))
+    log.info('ensure Art Mode: {}'.format(args.art_mode))
     
     #get google api_key for AI
     if Path(args.api_file).is_file():

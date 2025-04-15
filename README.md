@@ -413,7 +413,7 @@ This means that it is possible to edit this information on the `.jpg` files in W
 
 ## AI Support
 
-Google AI support is included for automatically filling in the text files, using the data in the image, and the file name. If the `details` field is missing from the text file (or Exif data), or no text file exists, then Google AI will be automatically called to fill in the details. The location, filename and image are used to generate the text that will be displayed, so it is helpful to make the filename descriptive - `Brolga_wading.jpg` is better than `IMG_0256.jpg` for example.  
+Google AI support is included for automatically filling in the text files, using the data in the image, and the file name (and `header` or `description` if present in Exif data or text file). If the `details` field is missing from the text file (or Exif data), or no text file exists, then Google AI will be automatically called to fill in the details. The location, filename and image are used to generate the text that will be displayed, so it is helpful to make the filename descriptive - `Brolga_wading.jpg` is better than `IMG_0256.jpg` for example.  
 Once the text files have been created via AI, they can be edited as normal to add additional information (such as `credit`, `photographer` etc), or correct errors. `time` and `location` are automatically read from the image file, so you should leave these blank, unless the information is missing from the image file (Exif GPS info missing for example).  
 
 **NOTE:** In order to use Google AI, you must have a Google AI `API KEY`. See below for how to obtain one. 
