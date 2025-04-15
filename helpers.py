@@ -225,6 +225,31 @@ class helpers:
         if content_id:
             uploaded_files[filename.name] = {'content_id': content_id, 'modified':self.get_last_updated(filename)}
         return uploaded_files
+        
+    def get_image_for_ai(self, image_file, client):
+        '''
+        load image for AI use
+        check size and return PIL image or file ref after uploading or None if file too big
+        '''
+        image_size = image_file.stat().st_size
+        if image_size >= 2*1024*1024*1024:      #2Gb file size limit
+            self.log.warning('{}: file is over 2GB - so too large to upload'.format(image_file.name))
+            return None
+        if image_size > 19*1024*1024:           #20MB inline upload limit, so upload seperately
+            return client.files.upload(file=image_file)
+        return self.get_PIL_image(image_file)
+        
+    def update_text(self, info, text, new_info):
+        '''
+        update text and info with AI information
+        '''
+        updated = False
+        for k, v in new_info.items():
+            if not text.get(k) and not info.get(k):
+                text[k] = self.html_markup(new_info[k])
+                info[k] = self.html_markup(new_info[k])
+                updated = True
+        return updated
     
 async def main():
     global log

@@ -481,7 +481,7 @@ class WebServer(monitor_and_display):
                 except Exception as e:
                     self.log.warning('error: {}: {}'.format(e, text_file))
             #use AI to fill in missing details if we have api_key
-            text = await self.get_ai_description(self.get_modal_from_exif(filename, text), filename, text_file)
+            text = await self.get_ai_description(self.get_modal_from_exif(filename, text), filename, text_file, text)
             if type == 'caption':
                 text = self.get_caption_from_exif(filename, text)
             if text:
@@ -574,7 +574,7 @@ class WebServer(monitor_and_display):
         self.log.info('writing new text file: {}'.format(text_file.name))
         text_file.write_text(self.app.json.dumps(text, indent=2, sort_keys=True))
             
-    async def get_ai_description(self, info, image_file, text_file):
+    async def get_ai_description(self, info, image_file, text_file, text):
         '''
         use google AI to fill in details, if we have an API KEY
         '''
@@ -585,55 +585,47 @@ class WebServer(monitor_and_display):
             try:
                 from google import genai
                 from google.genai import types
-                image = self.get_PIL_image(image_file)
                 client = genai.Client(api_key=self.api_key)
-                response = await client.aio.models.generate_content(
-                    model='gemini-2.0-flash-001',
-                    contents=[
-                        'describe this image',
-                        'use text only inline html',
-                        'description is the latin name in html italics',
-                        'details should be 400 words or less and include behaviour, habitat and simple inline html',
-                        'if there are no animals, describe the scene',
-                        'do not include the location',
-                        'header should be a plain text caption for a picture with less than 45 characters',
-                        'do not include links',
-                        'file name is ()'.format(image_file.with_suffix("").name.replace('_',' ')),
-                        'location is {}'.format(info['location'] if info.get('location') else 'Austrailia' if info.get('credit') == 'wildfoto.au' else 'possibly Austrailia'), #use default location suggestion if missing
-                        '()'.format('subject is {}'.format(info['header'] if info.get('header') else '')),
-                        '()'.format('description is {}'.format(info['description'] if info.get('description') else '')),
-                        image
-                    ],
-                    config=types.GenerateContentConfig(
-                        response_mime_type='application/json',
-                        response_schema={
-                            'required': [
-                                'header',
-                                'description',
-                                'details'
-                            ],
-                            'properties': {
-                                'header': {'type': 'STRING'},
-                                'description': {'type': 'STRING'},
-                                'details': {'type': 'STRING'}
+                image = self.get_image_for_ai(image_file, client)
+                if image:
+                    response = await client.aio.models.generate_content(
+                        model='gemini-2.0-flash-001',
+                        contents=[
+                            'describe this image',
+                            'use text only inline html',
+                            'description is the latin name in html italics',
+                            'details should be 400 words or less and include behaviour, habitat and simple inline html',
+                            'if there are no animals, describe the scene',
+                            'do not include the location',
+                            'header should be a plain text caption for a picture with less than 45 characters',
+                            'do not include links',
+                            'file name is ()'.format(image_file.with_suffix("").name.replace('_',' ')),
+                            'location is {}'.format(info['location'] if info.get('location') else 'Austrailia' if info.get('credit') == 'wildfoto.au' else 'possibly Austrailia'), #use default location suggestion if missing
+                            '()'.format('subject is {}'.format(info['header'] if info.get('header') else '')),
+                            '()'.format('description is {}'.format(info['description'] if info.get('description') else '')),
+                            image
+                        ],
+                        config=types.GenerateContentConfig(
+                            response_mime_type='application/json',
+                            response_schema={
+                                'required': [
+                                    'header',
+                                    'description',
+                                    'details'
+                                ],
+                                'properties': {
+                                    'header': {'type': 'STRING'},
+                                    'description': {'type': 'STRING'},
+                                    'details': {'type': 'STRING'}
+                                },
+                                'type': 'OBJECT',
                             },
-                            'type': 'OBJECT',
-                        },
+                        )
                     )
-                )
-                self.log.info('Google AI info: {}'.format(response.text))
-                new_info = self.app.json.loads(response.text)
-                text = self.app.json.loads(text_file.read_text()) if text_file.is_file() else self.text.get(image_file.name,{})
-                updated = False
-                for k, v in new_info.items():
-                    if not text.get(k) and not info.get(k):
-                        text[k] = self.html_markup(new_info[k])
-                        info[k] = self.html_markup(new_info[k])
-                        updated = True
-                        self.log.debug('updating text_file: {} with {}'.format(text_file.name, new_info[k]))
-                if updated:
-                    self.save_text_file(text, text_file)
-                    self.update_reference_dict(image_file.name, text, self.get_last_updated(text_file))
+                    self.log.info('Google AI info: {}'.format(response.text))
+                    if self.update_text(info, text, self.app.json.loads(response.text)):
+                        self.save_text_file(text, text_file)
+                        self.update_reference_dict(image_file.name, text, self.get_last_updated(text_file))
             except Exception as e:
                 self.log.warning(e)
         return info

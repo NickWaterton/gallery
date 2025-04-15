@@ -1,0 +1,10 @@
+{
+  "caption": "",
+  "credit": "",
+  "description": "A brightly coloured Crimson Finch",
+  "details": "The Crimson Finch (<i>Neochmia phaeton</i>) is a small finch with striking red plumage. The adult males are a vibrant crimson red, while females tend to be a slightly duller shade. Juveniles are typically a brownish colour, gradually attaining their adult plumage as they mature.<br><br>Crimson Finches are social birds, often seen in flocks. They are ground feeders, foraging for seeds, particularly grass seeds, on the ground. Their behaviour includes frequent preening and social interaction within the flock. These birds are often seen near water sources, as they require regular access to water for drinking and bathing. They are capable of breeding at any time of year if conditions are suitable.<br><br>These finches are commonly found in tropical and subtropical regions of northern Australia. They inhabit a variety of habitats, including grasslands, mangroves, and <i>Eucalyptus</i> woodlands, particularly those close to permanent water sources such as rivers, creeks, and swamps. They construct dome-shaped nests from grass and other vegetation, typically in dense shrubs or trees, often near water. These nests are well-concealed, providing protection from predators and the elements.",
+  "header": "Crimson Finch Perched",
+  "location": "",
+  "photographer": "",
+  "time": ""
+}
