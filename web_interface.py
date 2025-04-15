@@ -599,7 +599,7 @@ class WebServer(monitor_and_display):
                         'header should be a plain text caption for a picture with less than 45 characters',
                         'do not include links',
                         'file name is ()'.format(image_file.with_suffix("").name.replace('_',' ')),
-                        'location is {}'.format(info['location'] if info.get('location') else 'possibly Austrailia'), #use default location suggestion if missing
+                        'location is {}'.format(info['location'] if info.get('location') else 'Austrailia' if info.get('credit') == 'wildfoto.au' else 'possibly Austrailia'), #use default location suggestion if missing
                         '()'.format('subject is {}'.format(info['header'] if info.get('header') else '')),
                         '()'.format('description is {}'.format(info['description'] if info.get('description') else '')),
                         image
