@@ -441,20 +441,20 @@ class WebServer(monitor_and_display):
         # Wait for the subprocess exit.
         await proc.wait()
         
-    def get_text_file_name(self, file):
+    def get_text_file_name(self, filename):
         '''
         find text file name from image file name
         case insensitive
         '''
-        text_file = Path(file).with_suffix(".TXT")
-        for file in Path(self.app.static_folder).iterdir():
+        text_file = self.get_Path(filename).with_suffix(".TXT")
+        for file in self.folder.iterdir():
             if file.name.upper() == text_file.name.upper():
                 return file
         return None
         
-    async def get_text(self, file, type='modal'):
+    async def get_text(self, filename, type='modal'):
         '''
-        takes an image file name, finds corresponding text file.
+        takes an image filename, finds corresponding text file.
         if data does not already exist in self.text and file has not been updated, reads the file from the static folder
         as a dictionary of the json.
         returns None if file not found, or json is invalid and data not in the image exif data
@@ -463,33 +463,33 @@ class WebServer(monitor_and_display):
         # use lock to prevent multiple calls for modal and caption
         async with self.api_lock:
             #default info
-            data = {"id": Path(file).with_suffix(""), "name": file}
+            data = {"id": self.get_Path(filename).with_suffix(""), "name": filename}
             text = {}
-            text_file = self.get_text_file_name(file)
+            text_file = self.get_text_file_name(filename)
             if text_file:
                 try:
                     ts = self.get_last_updated(text_file)
-                    if self.text.get(file,{}).get('timestamp') != ts:
+                    if self.text.get(filename,{}).get('timestamp') != ts:
                         self.log.info('reading text file: {}'.format(text_file.name))
                         text = self.app.json.loads(text_file.read_text())
-                        self.update_reference_dict(file, text, ts)
+                        self.update_reference_dict(filename, text, ts)
                     else:
-                        text = self.text.get(file,{})
-                    self.log.debug('got text for image: {}: {}'.format(file, text))
+                        text = self.text.get(filename,{})
+                    self.log.debug('got text for image: {}: {}'.format(filename, text))
                 except FileNotFoundError:
                     pass
                 except Exception as e:
                     self.log.warning('error: {}: {}'.format(e, text_file))
             #use AI to fill in missing details if we have api_key
-            text = await self.get_ai_description(self.get_modal_from_exif(file, text), file, text_file)
+            text = await self.get_ai_description(self.get_modal_from_exif(filename, text), filename, text_file)
             if type == 'caption':
-                text = self.get_caption_from_exif(file, text)
+                text = self.get_caption_from_exif(filename, text)
             if text:
                 data.update(text)
                 return data
             return None
             
-    def get_modal_from_exif(self, file, text):
+    def get_modal_from_exif(self, filename, text):
         '''
         fill in modal data from exif data if it exists or default from text file
         modal uses:
@@ -502,25 +502,25 @@ class WebServer(monitor_and_display):
         '''
         try:
             modal = {}
-            modal['header'] = self.exif.get_title(file, text.get('header') or text.get('description'))
-            modal['description'] = self.exif.get_description(file, text.get('description'))
+            modal['header'] = self.exif.get_title(filename, text.get('header') or text.get('description'))
+            modal['description'] = self.exif.get_description(filename, text.get('description'))
             if modal['header'] and modal['description'] and modal['header'] == modal['description']:
                 modal['description'] = None
             if modal['header'] or self.api_key:
-                modal['details'] = self.html_markup(self.exif.get_user_comment(file, text.get('details')))
-                modal['time'] = self.exif.get_date_original(file, text.get('time'))
-                modal['location'] = self.exif.get_location(file, text.get('location'))
-                modal['credit'] = self.exif.get_credit(file, text.get('credit'))
+                modal['details'] = self.html_markup(self.exif.get_user_comment(filename, text.get('details')))
+                modal['time'] = self.exif.get_date_original(filename, text.get('time'))
+                modal['location'] = self.exif.get_location(filename, text.get('location'))
+                modal['credit'] = self.exif.get_credit(filename, text.get('credit'))
                 #add default credit if missing
                 if not modal.get('credit'):
-                    photographer = self.exif.get_photographer(file, text.get('photographer', '').strip() or self.photographer) or ''
+                    photographer = self.exif.get_photographer(filename, text.get('photographer', '').strip() or self.photographer) or ''
                     modal['credit'] = 'wildfoto.au' if all(val in photographer.lower() for val in ['paul', 'thompsen']) else 'unknown'
                 return modal
         except Exception as e:
             self.log.exception(e)
         return None
             
-    def get_caption_from_exif(self, file, text):
+    def get_caption_from_exif(self, filename, text):
         '''
         fill in caption data from exif data if it exists or default from text file
         uses exif fields:
@@ -540,23 +540,23 @@ class WebServer(monitor_and_display):
         try:
             caption = {}
             #get values from exif or defaults from text file
-            caption['title'] = self.exif.get_title(file, text.get('caption') or text.get('header') or text.get('description'))
+            caption['title'] = self.exif.get_title(filename, text.get('caption') or text.get('header') or text.get('description'))
             if caption['title']:
-                caption['location'] =  self.exif.get_caption_location(file, text.get('location'))
-                caption['byline'] = self.exif.get_byline(file, text.get('photographer', '').strip() or self.photographer)
-                caption['camera'] = self.exif.get_camera(file)
-                caption['settings'] = self.exif.get_settings(file)
+                caption['location'] =  self.exif.get_caption_location(filename, text.get('location'))
+                caption['byline'] = self.exif.get_byline(filename, text.get('photographer', '').strip() or self.photographer)
+                caption['camera'] = self.exif.get_camera(filename)
+                caption['settings'] = self.exif.get_settings(filename)
                 return caption
         except Exception as e:
             self.log.exception(e)
         return None
         
-    def update_reference_dict(self, file, text, ts):
+    def update_reference_dict(self, filename, text, ts):
         '''
         update the quick reference dictionary for modals and display
         '''
         text['timestamp'] = ts
-        self.text[file] = text
+        self.text[filename] = text
         
     def save_text_file(self, text, text_file):
         '''
@@ -580,7 +580,7 @@ class WebServer(monitor_and_display):
         '''
         info = info or {}
         if self.api_key and (not info.get('details') or not info.get('header')):
-            image_file = Path(self.app.static_folder, image_file)
+            image_file = self.folder/image_file
             text_file = text_file or image_file.with_suffix(".TXT")
             try:
                 from google import genai

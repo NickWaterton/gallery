@@ -1,9 +1,9 @@
 {
   "caption": "",
   "credit": "",
-  "description": "The scene depicts a group of evergreen trees, possibly firs, painted in a watercolor style. The trees, rendered in shades of green and brown, stand against a background of pale yellow.",
+  "description": "The image depicts a group of coniferous trees, possibly <i>Picea abies</i>, rendered in a watercolor style.",
   "details": "",
-  "header": "Evergreen Trees in Watercolor",
+  "header": "Watercolor Evergreen Trees",
   "location": "",
   "photographer": "",
   "time": ""
