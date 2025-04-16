@@ -24,7 +24,6 @@ class TVInterface(helpers):
         self.token_file = self.get_Path(token_file) if token_file else token_file
         self.art_mode = art_mode
         self.folder = folder
-        self.art_task = None
         self.api_version = 0
         self.exit = False
         self.lock = asyncio.Lock()
@@ -34,19 +33,14 @@ class TVInterface(helpers):
         await self.tv.start_listening()
         self.log.info('Started')
         if self.art_mode:
-            self.art_task = asyncio.create_task(self.ensure_artmode())
+            asyncio.create_task(self.ensure_artmode())
         
-    async def close(self):
+    async def close_tv_connection(self):
         '''
-        exit any running programs or tasks
+        close the TV connection
         '''
-        self.log.info('EXIT received, exiting, please wait for tasks to complete...')
-        helpers.exit = True
-        self.exit = True
-        if self.art_task:
-            self.art_task.cancel()
+        self.log.info('Closing TV connection')
         await self.tv.close()
-        #raise SystemExit('cancelled')
             
     def tv_is_alive(self):
         return self.tv.is_alive()

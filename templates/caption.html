@@ -43,14 +43,12 @@
                     console.log("got display update ", obj.name);
                     switch(obj.name) {
                         case 'off':
+                            console.log("Blanking caption display")
                             updateCaption(obj.name, '')
                             break;
                         case 'reload':
-                            //ignore reload
-                            break;
-                        
                         case 'refresh':
-                            //ignore refresh
+                            //ignore
                             break;
                         default:
                             //get caption text for obj.name
@@ -58,13 +56,15 @@
                     }
                     break;
                 case 'theme':
-                    //ignore theme
-                    break;
                 case 'kiosk':
-                    //ignore kiosk
+                    //ignore
                     break;
                 case 'caption':
                     console.log("got caption update ", obj.name);
+                    if (obj.name == 'none') {
+                        console.log("Blanking caption display")
+                        obj.data = ''
+                    }
                     updateCaption(obj.name, obj.data)
                     break;
                 default:
@@ -85,13 +85,8 @@
     }
     
     function updateCaption(name, text) {  
-        if (name !='none') {
-            document.getElementById('caption').innerHTML=text
-            console.log("Displaying caption for: ", name)
-        } else {
-            document.getElementById('caption').innerHTML=''
-            console.log("Blanking caption display")
-        }
+        document.getElementById('caption').innerHTML=text
+        console.log("Displaying caption for: ", name)
     }
     
 </script>

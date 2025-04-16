@@ -16,6 +16,7 @@
 # V 2.0.5 13/4/25 NW major refactoring
 # V 2.1.0 14/4/25 NW Added google AI to fill in image details if missing
 # V 2.1.1 15/4/25 NW General tidy up
+# V 2/2/2 16/4/25 NW Improved startup and shutdown
 
 import quart_flask_patch
 import asyncio
@@ -32,7 +33,7 @@ from hypercorn.asyncio import serve
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 
-__version__ = '2.1.1'
+__version__ = '2.1.2'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -152,18 +153,12 @@ class WebServer(monitor_and_display):
             config = Config()
             config.bind = '{}:{}'.format(self.host, self.port)
             config.loglevel = 'DEBUG' if self.debug else 'INFO'
-            asyncio.create_task(self.start_monitoring())
-            await serve(self.app, config, shutdown_trigger=self.shutdown_trigger)
+            server = serve(self.app, config, shutdown_trigger=self.shutdown_trigger)
         else:
             self.log.info('DEVELOPMENT Mode')
-            await asyncio.gather(self.run(), self.start_monitoring(), return_exceptions=True)
-    
-    async def run(self):
-        '''
-        run web server as task
-        '''
+            server = self.app.run_task(host=self.host, port=self.port, debug=self.debug,  shutdown_trigger=self.shutdown_trigger)
         self.log.info('Serving files from: {}'.format(self.app.static_folder))
-        await self.app.run_task(host=self.host, port=self.port, debug=self.debug,  shutdown_trigger=self.shutdown_trigger)
+        await asyncio.gather(server, self.start_monitoring(), return_exceptions=True)
         
     def close(self):
         '''
@@ -171,7 +166,6 @@ class WebServer(monitor_and_display):
         '''
         self.log.info('SIGINT/SIGTERM received, exiting')
         self.exit=True
-        monitor_and_display.close(self)
         
     def add_signals(self):
         '''
@@ -188,7 +182,7 @@ class WebServer(monitor_and_display):
         just loop until self.exit is set
         This should trigger the server shutdown
         '''
-        while not self.exit or self.busy:
+        while not self.exit:
             await asyncio.sleep(1)
         self.log.info('shutdown initiated')
 
@@ -693,5 +687,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        sys.exit()    
+        pass    
 

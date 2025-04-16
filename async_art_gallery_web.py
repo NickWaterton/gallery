@@ -58,14 +58,12 @@ class monitor_and_display(TVInterface):
         self.prev_filename = None
         self.updated = True
         self.exit = False
-        self.busy = False
         self.modified_files = set()
         
     async def start_monitoring(self):
         '''
         program entry point
         '''
-        self.busy = True
         if self.on and not await self.tv_on():
             self.log.info('TV is off, exiting')
         else:
@@ -77,17 +75,8 @@ class monitor_and_display(TVInterface):
             if self.tv_is_alive():
                 self.matte = await self.check_matte(self.matte)
                 await self.select_artwork()
-        await TVInterface.close(self)
+        await self.close_tv_connection()
         self.log.info('exited')
-        self.busy = False
-        
-    def close(self):
-        '''
-        exit on signal
-        '''
-        self.log.info('EXIT received, exiting, please wait for tasks to complete...')
-        self.exit = True
-        #raise SystemExit('cancelled')
             
     async def initialize(self):
         '''
@@ -103,7 +92,7 @@ class monitor_and_display(TVInterface):
         self.load_program_data()
         self.log.info('files in directory: {}: {}'.format(self.folder, self.get_folder_files()))
         if self.sync:
-            await self.initialize_pil() #optional
+            await self.initialize_pil()
         else:
             self.log.warning('syncing disabled, not updating uploaded files list')
             
