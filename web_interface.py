@@ -475,9 +475,13 @@ class WebServer(monitor_and_display):
                 except Exception as e:
                     self.log.warning('error: {}: {}'.format(e, text_file))
             #use AI to fill in missing details if we have api_key
-            text = await self.get_ai_description(self.get_modal_from_exif(filename, text), filename, text_file, text)
-            if type == 'caption':
-                text = self.get_caption_from_exif(filename, text)
+            info, text = await self.get_ai_description(self.get_modal_from_exif(filename, text), filename, text_file, text)
+            #python 3.10 and above only!
+            match type:
+                case 'modal':
+                    text = info
+                case 'caption':
+                    text = self.get_caption_from_exif(filename, text)
             if text:
                 data.update(text)
                 return data
@@ -508,7 +512,7 @@ class WebServer(monitor_and_display):
                 #add default credit if missing
                 if not modal.get('credit'):
                     photographer = self.exif.get_photographer(filename, text.get('photographer', '').strip() or self.photographer) or ''
-                    modal['credit'] = 'wildfoto.au' if all(val in photographer.lower() for val in ['paul', 'thompsen']) else 'unknown'
+                    modal['credit'] = 'wildfoto.au' if all(val in photographer.lower() for val in ['paul', 'thompsen']) else photographer or 'unknown'
                 return modal
         except Exception as e:
             self.log.exception(e)
@@ -622,7 +626,7 @@ class WebServer(monitor_and_display):
                         self.update_reference_dict(image_file.name, text, self.get_last_updated(text_file))
             except Exception as e:
                 self.log.warning(e)
-        return info
+        return info, text
         
 async def main():
     args = parseargs()

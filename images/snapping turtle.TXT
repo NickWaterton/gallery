@@ -4,7 +4,7 @@
   "description": "<i>Chelydra serpentina</i>",
   "details": "The common snapping turtle, <i>Chelydra serpentina</i>, is a large freshwater turtle of the family Chelydridae. Native to North America, it's known for its aggressive temperament when out of the water. <br><br><b>Behaviour</b>: Snapping turtles are primarily aquatic but often bask on logs or rocks. They are opportunistic feeders, consuming a variety of prey including fish, frogs, snakes, insects, and aquatic plants. They are ambush predators, often lying in wait at the bottom of water bodies to strike at passing prey. These turtles are known for their strong jaws and can deliver a painful bite if threatened.<br><br><b>Habitat</b>: They inhabit a wide range of freshwater habitats, including ponds, lakes, rivers, and swamps. Snapping turtles prefer environments with muddy bottoms and dense vegetation, which provide cover for hunting and hiding. They are adaptable and can tolerate a variety of water conditions, including brackish water. During the breeding season, females may travel overland to find suitable nesting sites, often digging nests in sandy or loamy soil.",
   "header": "Snapping Turtle",
-  "location": "",
+  "location": "Lake Muskoka, Ontario, Canada",
   "photographer": "",
-  "time": ""
+  "time": "August 2015"
 }
