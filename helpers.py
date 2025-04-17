@@ -71,14 +71,15 @@ class helpers:
         '''
         return Path(file)
         
-    def get_PIL_image(self, file, raw=False):
+    def get_PIL_image(self, file, raw=False, unchanged=False):
         '''
-        loads and returns PIL image as jpg format or raw jpg binary data if raw
+        loads and returns PIL image as JPEG format or raw jpg binary data if raw
+        if unchanged, do not convert image to JPEG (used for exif data extraction)
         '''
         try:
             file = file if isinstance(file, (str, Path)) else BytesIO(file)
             img = Image.open(file)
-            if img.format != 'JPEG':
+            if img.format != 'JPEG' and not unchanged:
                 membuf = BytesIO()
                 img.save(membuf, format="JPEG", quality="maximum")
                 return membuf if raw else Image.open(membuf)

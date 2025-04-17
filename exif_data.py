@@ -84,7 +84,7 @@ class ExifData(helpers):
         '''
         self.log.info('{}: getting exif data'.format(file.name))
         try:
-            img = self.get_PIL_image(file)
+            img = self.get_PIL_image(file, unchanged=True)
             self.exif[file.name]={self.tag_name(tag): self.conv_bytes(tag, value) for tag, value in (img._getexif() or {}).items() if self.tag_name(tag) not in self.ignore}
             self.exif_log(file.name, self.exif.get(file.name))
         except FileNotFoundError:
