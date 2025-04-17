@@ -251,35 +251,24 @@ class monitor_and_display(TVInterface):
         
     async def filename_changed(self):
         '''
-        async generator that yields changed filename or 'off'
+        async generator that yields changed filename or 'off' if tv is not in art mode
+        self.updated is intiially True
         '''
         while not self.exit:
             if self.updated:
                 self.updated = False
                 self.prev_filename = None
                 yield 'refresh'
-            else:
-                filename = await self.get_current_filename()
-                if filename != self.prev_filename:
-                    self.prev_filename = filename
-                    self.log.info('returning: {}'.format(filename))
-                    yield filename
-            await asyncio.sleep(1)
-        yield 'off'
-            
-    async def get_current_filename(self):
-        '''
-        return current filename for displayed image on TV or 'off'
-        '''
-        if await self.tv_in_artmode():
-            if self.current_content_id is None:
-                self.current_content_id = await self.get_current_artwork()
-                self.prev_filename = None
+                continue
             for filename, value in self.uploaded_files.items():
                 if value['content_id'] == self.current_content_id:
-                    return filename
-            await self.wait_seconds(1)
-        return 'off'
+                    filename = filename if await self.tv_in_artmode() else 'off'
+                    if filename != self.prev_filename:
+                        self.prev_filename = filename
+                        self.log.info('returning: {}'.format(filename))
+                        yield filename
+            await asyncio.sleep(1)
+        yield 'off'
     
     async def check_dir(self):
         '''
@@ -320,8 +309,8 @@ class monitor_and_display(TVInterface):
         
     async def initialize_pil(self):
         '''
-        initialize uploaded_files using PIL
-        compares the file data with thumbnails to find the content_id and write to uploaded_files
+        initialize uploaded_files.json using PIL
+        compares the file data with thumbnails to find the content_id and write to uploaded_files.json
         if it doesn't already exist
         '''
         uploaded_files = await self.compare_thumbnails_with_files()

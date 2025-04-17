@@ -93,7 +93,6 @@ class TVInterface(helpers):
         '''
         gets thumbnails from tv in list of content_ids
         returns dictionary of content_ids and binary data
-        only used if PIL is installed
         '''
         thumbnails = {}
         if content_ids:
@@ -133,15 +132,16 @@ class TVInterface(helpers):
         '''
         upload files in list to tv with selected matte
         return dictionary of uploaded files, and list of files that failed to upload
+        use PIL to convert all files to JPEG format
         '''
         uploaded_files = {}
         missing_files = []
         for filename in filenames:
-            file_data, file_type = self.read_file(filename)
+            file_data = self.get_PIL_image(filename, True)
             if file_data and self.tv.art_mode:
                 self.log.info('uploading : {} to tv'.format(filename.name))
                 async with self.lock:
-                    content_id = await self.tv.upload(file_data, file_type=file_type, matte=matte, portrait_matte=matte, timeout=30)
+                    content_id = await self.tv.upload(file_data, file_type='JPG', matte=matte, portrait_matte=matte, timeout=30)
                     if content_id:
                         uploaded_files = self.update_uploaded_files(filename, content_id, uploaded_files)
                         self.log.info('uploaded : {} to tv as {}'.format(filename.name, content_id))
@@ -177,8 +177,8 @@ class TVInterface(helpers):
         
     async def compare_thumbnails_with_files(self):
         '''
-        initialize uploaded_files using PIL
-        compares the file data with thumbnails to find the content_id and write to uploaded_files
+        initialize uploaded_files.json using PIL
+        compares the file data with thumbnails to find the content_id and write to uploaded_files.json
         if it doesn't already exist
         '''
         self.log.info('Checking uploaded files list using PIL')

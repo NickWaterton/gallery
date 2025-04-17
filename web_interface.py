@@ -16,7 +16,8 @@
 # V 2.0.5 13/4/25 NW major refactoring
 # V 2.1.0 14/4/25 NW Added google AI to fill in image details if missing
 # V 2.1.1 15/4/25 NW General tidy up
-# V 2/2/2 16/4/25 NW Improved startup and shutdown
+# V 2.2.2 16/4/25 NW Improved startup and shutdown
+# V 2.2.3 17/4/25 NW General simplification
 
 import quart_flask_patch
 import asyncio
@@ -33,7 +34,7 @@ from hypercorn.asyncio import serve
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 
-__version__ = '2.1.2'
+__version__ = '2.1.3'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -300,7 +301,7 @@ class WebServer(monitor_and_display):
         '''
         await self.ws_send({'type': 'theme', 'name': str(self.theme)})  #send 'theme' with name of theme to update display on first connection
         await self.ws_send({'type': 'kiosk', 'name': str(self.kiosk)})  #send 'kiosk' with name as kiosk mode
-        self.current_content_id = None   #trigger reload of filename
+        self.prev_filename = None   #trigger reload of filename
 
     async def ws(self):
         '''
