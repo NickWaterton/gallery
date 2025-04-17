@@ -255,19 +255,20 @@ class monitor_and_display(TVInterface):
         self.updated is intiially True
         '''
         while not self.exit:
+            art_mode = await self.tv_in_artmode()
             if self.updated:
                 self.updated = False
                 self.prev_filename = None
                 yield 'refresh'
-                continue
             for filename, value in self.uploaded_files.items():
                 if value['content_id'] == self.current_content_id:
-                    filename = filename if await self.tv_in_artmode() else 'off'
+                    filename = filename if art_mode else 'off'
                     if filename != self.prev_filename:
                         self.prev_filename = filename
                         self.log.info('returning: {}'.format(filename))
                         yield filename
-            await asyncio.sleep(1)
+                        break
+            await self.wait_seconds(1)
         yield 'off'
     
     async def check_dir(self):

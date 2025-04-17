@@ -23,17 +23,30 @@ class helpers:
         self.debug = self.log.getEffectiveLevel() <= logging.DEBUG
         self.folder = folder
         self.exit = False
-        self.timers = {}
-        
+        self.timers = set()
+        asyncio.create_task(self.cancel_timers())
+ 
     async def wait_seconds(self, duration=1):
         '''
-        pause for specific duration (seconds) while allowing exit
+        pause for specific duration (seconds) while allowing cancelling
         '''
-        name = ''.join(random.choice(string.ascii_letters) for x in range(12))
-        self.timers[name] = time.time()
-        while time.time() - self.timers[name] < duration and not self.exit:
-            await asyncio.sleep(1)
-        self.timers.pop(name)
+        task = asyncio.create_task(asyncio.sleep(duration))
+        self.timers.add(task)
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        finally:
+            self.timers.remove(task)
+            
+    async def cancel_timers(self):
+        while not self.exit:
+            await asyncio.sleep(2)
+        try:
+            self.log.info('cancelling sleep tasks')
+            [t.cancel() for t in self.timers if not t.done()]
+        except Exception as e:
+            self.log.info(e)
         
     def format_files(self, files):
         '''
@@ -80,6 +93,8 @@ class helpers:
             file = file if isinstance(file, (str, Path)) else BytesIO(file)
             img = Image.open(file)
             if img.format != 'JPEG' and not unchanged:
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
                 membuf = BytesIO()
                 img.save(membuf, format="JPEG", quality="maximum")
                 return membuf if raw else Image.open(membuf)
@@ -152,6 +167,21 @@ class helpers:
         img2 = img2.convert('L').resize((384, 216)).filter(ImageFilter.GaussianBlur(radius=4))
         img3 = ImageChops.difference(img1, img2)    #updated 11/3/25 per suggestion in issue #11
         diff = sum(list(img3.getdata()))/(384*216)  #normalize
+        equal_content = diff <= 5.0                 #pick a threshhold
+        self.log.debug('equal_content: {}, diff: {}'.format(equal_content, round(diff, 2)))
+        return equal_content, diff
+        
+    def are_images_equal_experiment(self, my_data, img2):
+        '''
+        rough check if images are similar using PIL (avoid numpy which is faster)
+        my_data is binary, so convert to PIL format first
+        '''
+        img1 = self.get_PIL_image(my_data)
+        img1 = img1.convert('RGB').resize((384, 216))
+        img2 = img2.convert('RGB').resize((384, 216))
+        img3 = ImageChops.difference(img1, img2).convert('L')    #updated 11/3/25 per suggestion in issue #11
+        hist = img3.histogram()
+        diff = sum(value * i for i, value in enumerate(hist))/(384*216)
         equal_content = diff <= 5.0                 #pick a threshhold
         self.log.debug('equal_content: {}, diff: {}'.format(equal_content, round(diff, 2)))
         return equal_content, diff

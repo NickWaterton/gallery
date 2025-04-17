@@ -198,7 +198,11 @@ class WebServer(monitor_and_display):
         websocket send - update web page with displayed filename on TV
         '''
         self.log.info('websocket sending started')
-        await self.broadcast_tv_filename()  
+        if len(self.connected) == 1:    # only start one broadcast job
+            await self.broadcast_tv_filename()
+        else:
+            while not self.exit:
+                await asyncio.sleep(1)
         self.log.warning('websocket sending ended')
 
     async def receiving(self):
@@ -215,21 +219,24 @@ class WebServer(monitor_and_display):
         '''
         broadcast filename changes to all websockets connected
         '''
+        self.filename = True
         data={'type':'update'}
-        filename = self.filename_changed()              #filename generator
-        while not self.exit:
-            #stream filename changes on TV to web page
-            data['name'] = await anext(filename)        #blocks until next filename is available
-            for screen in self.screens:                 #turn screens on or off
-                await self.caption_screen_control(data['name']!='off', screen=screen.split(' ')[0])
-            for websoc in self.connected:
-                if websoc.skip:
-                    self.log.info('WS({}): will be skipping: {}'.format(websoc.id, websoc.skip))
-                if data['name'] in websoc.skip:         #skip if image was previously requested, as modal is already displayed
-                    self.log.info('WS({}): Not sending {} as image was previously selected'.format(websoc.id, data['name']))
-                    websoc.skip.discard(data['name'])
-                    continue
-                await self.ws_send(data, websoc)
+        filename = self.filename_changed()                  #filename generator
+        try:
+            while not self.exit:
+                #stream filename changes on TV to web page
+                data['name'] = await anext(filename)        #blocks until next filename is available
+                await self.set_screens(data['name'] not in ['off', 'refresh'])
+                for websoc in self.connected:
+                    if websoc.skip:
+                        self.log.info('WS({}): will be skipping: {}'.format(websoc.id, websoc.skip))
+                    if data['name'] in websoc.skip:         #skip if image was previously requested, as modal is already displayed
+                        self.log.info('WS({}): Not sending {} as image was previously selected'.format(websoc.id, data['name']))
+                        websoc.skip.discard(data['name'])
+                        continue
+                    await self.ws_send(data, websoc)
+        finally:
+            await self.set_screens(False)
         
     async def ws_process(self, data):
         '''
@@ -356,6 +363,13 @@ class WebServer(monitor_and_display):
         self.log.info('loading thumbnail page')
         image_names = self.get_data()
         return await render_template('home.html', names=image_names, kiosk=str(self.kiosk).lower(), theme=self.theme)
+        
+    async def set_screens(self, on):
+        '''
+        Turn all attached screens on or off
+        '''
+        for screen in self.screens:                 #turn screens on or off
+            await self.caption_screen_control(on, screen=screen.split(' ')[0])
         
     async def get_connected_screens_status(self, screen=None):
         '''
