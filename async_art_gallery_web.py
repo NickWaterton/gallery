@@ -127,7 +127,7 @@ class monitor_and_display(TVInterface):
         if self.program_data_path.is_file():
             program_data = json.loads(self.program_data_path.read_text())
             self.uploaded_files = program_data.get('uploaded_files', program_data)
-            self.check_time('start', self.update_time, program_data.get('last_update', 0))
+            self.check_time('start', self.update_time, program_data.get('last_update', time.time()))
         else:
             self.log.warning('no uploaded files list found')
             self.uploaded_files = {}
