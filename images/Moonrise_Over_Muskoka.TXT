@@ -1,11 +1,10 @@
 {
   "caption": "",
   "credit": "",
-  "description": "<i>Castor canadensis</i>",
-  "details": "The picture shows a tranquil scene at night. A body of water reflects the light of the moon, creating a bright path across the water. Silhouetted trees frame the view, adding a sense of depth to the image. There are also a few animals in the lake, likely beavers. <i>Castor canadensis</i>, known as the North American beaver, is a large rodent native to North America. Beavers are known for their industrious nature, building dams and lodges using trees, mud, and stones. These structures create wetlands that provide habitat for a variety of other species. Beavers are herbivores, feeding on tree bark, leaves, and aquatic plants. They are primarily nocturnal and are active year-round, even in cold climates. Their thick fur and layer of fat help them stay warm in the water. Beavers are social animals and live in family groups, typically consisting of an adult pair and their offspring.",
-  "header": "Night time Beavers",
-  "location": "Lake Muskoka, Ontario, Canada",
-  "photographer": "Nick Waterton",
-  "time": "",
-  "timestamp": 1744837377.2401404
+  "description": "The image shows a tranquil lake scene at night.",
+  "details": "The serene scene is bathed in the soft glow of the moon. The water's surface reflects the moonlight, creating a shimmering path of light that stretches towards the horizon. In the foreground, tree silhouettes frame the view, adding depth and a sense of enclosure. Across the lake, distant lights twinkle like stars, hinting at human presence. The overall atmosphere is one of peace and quiet, inviting contemplation and appreciation of nature's beauty. The scene evokes a sense of calm and tranquility, showcasing the beauty of a moonlit night.",
+  "header": "Lake at Night",
+  "location": "",
+  "photographer": "",
+  "time": ""
 }

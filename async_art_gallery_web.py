@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-# fully async example library to monitor a folder and upload/display on Frame TV using a web page for control
-# NOTE: install Pillow (pip install Pillow) to automatically syncronize art on TV wth uploaded_files.json.
-# this library is based on async_art_upload_from_directory.py, but with an added web front end based on quart.
+# fully async library to monitor a folder and upload/display on Frame TV using a web page for control
 # do not run it directly, use web_interface.py instead
 
 '''
@@ -16,13 +14,13 @@ if check is set to 0 seconds, the program will run once and exit. You can then r
 if there is more than one file in the folder, the current artword displayed is changed every update minutes (0) by default (which means do not select any artwork),
 otherwise the single file in the folder is selected to be displayed. this also only happens when the TV is in art mode.
 
-If you have PIL installed, the initial syncronization is automatic, the first time the program is run.
+PIL is required for the initial syncronization, the first time the program is run.
 
 If the on (-O) option is selected, the program wil exit if the TV is not on (TV or art mode).
 If the sequential (-S) option is selected, then the slideshow is sequential, not random (random is the default)
 The default checking period is 60 seconds or the update period whichever is less.
 
-It is loaded by the web_interface.py program
+It is a library used by the web_interface.py program
 '''
 
 import logging
@@ -52,8 +50,7 @@ class monitor_and_display(TVInterface):
         self.program_data_path = self.get_Path('./uploaded_files.json')
         self.uploaded_files = {}
         self.fav = set()
-        self.start = time.time()
-        self.skip = time.time() - self.display_for
+        self.timing = {}
         self.current_content_id = None
         self.prev_filename = None
         self.updated = True
@@ -76,13 +73,14 @@ class monitor_and_display(TVInterface):
                 self.matte = await self.check_matte(self.matte)
                 await self.select_artwork()
         await self.close_tv_connection()
+        self.exit = True
         self.log.info('exited')
             
     async def initialize(self):
         '''
         initializes program
         gets API version, and current displayed art content_id
-        uses PIL if available to try to match files in folder with content_id on tv.
+        uses PIL to try to match files in folder with content_id on tv.
         this matching is not really needed if uploaded_files (loaded from file) is accurate,
         and can be skipped by setting sync (-s) to False
         '''
@@ -96,6 +94,22 @@ class monitor_and_display(TVInterface):
         else:
             self.log.warning('syncing disabled, not updating uploaded files list')
             
+    def check_time(self, start, duration=None, initial_value=None):
+        '''
+        return remaining time before timer expires if greater than 0, check with no duration
+        or sets timer to value if duration set positive, or starts new timer if 0
+        '''
+        if not self.timing.get(start):
+           self.timing[start] = {'start': time.time(), 'duration': 0} 
+        if initial_value is not None:
+           self.timing[start]['start'] = initial_value 
+        if duration is not None:
+            self.timing[start]['start'] = time.time()
+            self.timing[start]['duration'] = self.timing[start].get('duration') or duration
+        remaining = self.timing[start]['duration'] - (time.time() - self.timing[start]['start'])
+        self.log.debug('{}: next update in: {}'.format(start, round(remaining, 2)))
+        return remaining if remaining > 0 else 0
+        
     async def sync_file_list(self):
         '''
         if art has been deleted on tv, resyncronises uploaded_files with tv
@@ -113,10 +127,11 @@ class monitor_and_display(TVInterface):
         if self.program_data_path.is_file():
             program_data = json.loads(self.program_data_path.read_text())
             self.uploaded_files = program_data.get('uploaded_files', program_data)
-            self.start = program_data.get('last_update', time.time())
+            self.check_time('start', self.update_time, program_data.get('last_update', 0))
         else:
+            self.log.warning('no uploaded files list found')
             self.uploaded_files = {}
-            self.start = time.time()
+            self.check_time('start', self.update_time)
         
     def write_program_data(self):
         '''
@@ -124,7 +139,7 @@ class monitor_and_display(TVInterface):
         also save the last time that art was updated, for timing slideshows
         '''
         
-        program_data = {'last_update': self.start, 'uploaded_files': self.uploaded_files}
+        program_data = {'last_update': self.timing.get('start', {}).get('start'), 'uploaded_files': self.uploaded_files}
         self.program_data_path.write_text(json.dumps(program_data, indent=2))
         
     async def upload_files(self, filenames):
@@ -195,9 +210,9 @@ class monitor_and_display(TVInterface):
         updates favourites list if favourites are included in slideshow
         '''
         if self.update_time > 0 and (len(self.uploaded_files.keys()) > 1 or self.include_fav):
-            if time.time() - self.start >= self.update_time:
+            if not self.check_time('start'):                       #if timer expired
                 self.log.info('doing slideshow update, after {}'.format(self.get_time(self.update_time)))
-                self.start = time.time()
+                self.check_time('start', self.update_time)         #reset timer
                 self.write_program_data()
                 if self.include_fav:
                     self.log.info('updating favourites')
@@ -205,7 +220,7 @@ class monitor_and_display(TVInterface):
                     self.fav = set(fav) if fav is not None else self.fav
                 await self.change_art()
             else:
-                self.log.info('next {} update in {}'.format('sequential' if self.sequential else 'random', self.get_time(self.update_time - (time.time() - self.start))))
+                self.log.info('next {} update in {}'.format('sequential' if self.sequential else 'random', self.get_time(self.check_time('start'))))
                 
     def get_content_ids(self):
         '''
@@ -243,8 +258,8 @@ class monitor_and_display(TVInterface):
         '''
         try:
             content_id = self.uploaded_files[filename]['content_id']
-            self.skip = time.time()
-            self.start = 0
+            self.check_time('skip', self.display_for)   #reset timer
+            self.check_time('start', initial_value=0)
             await self.change_art(content_id)
         except Exception as e:
             self.log.warning('error: {}, file: {}'.format(e, filename))
@@ -285,12 +300,11 @@ class monitor_and_display(TVInterface):
                     await self.add_files(files),
                     await self.update_files(files),
                 ])
-                #update tv art if enabled by timer or skip if manually selected
-                if time.time() - self.skip <= self.display_for:
-                    return
-                await self.update_art_timer()
-                if len(self.get_content_ids()) == 1:
-                    await self.change_art()
+                # if art manually selected timer expired, auto update, else skip
+                if not self.check_time('skip'):
+                    await self.update_art_timer()
+                    if len(self.get_content_ids()) == 1:
+                        await self.change_art()
             else:
                 self.log.info('artmode or tv is off')
         except Exception as e:

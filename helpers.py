@@ -4,9 +4,8 @@
 import logging
 from pathlib import Path
 from io import BytesIO
-import random, string
+import random
 import asyncio
-import time
 import datetime
 from pprint import pformat
 from PIL import Image, ImageFilter, ImageChops
@@ -77,12 +76,15 @@ class helpers:
         get suffix without '.' or ''
         '''
         return filename.suffix[1:].lower()
-        
-    def get_Path(self, file):
+    
+    @classmethod
+    def get_Path(self, file, *args, suffix=None):
         '''
-        returns file as a Path object
+        returns file as a Path object, concatinated with optional arguments,
+        and optionally with suffix changed
         '''
-        return Path(file)
+        path = Path(file, *args)
+        return path if suffix is None else path.with_suffix(suffix)
         
     def get_PIL_image(self, file, raw=False, unchanged=False):
         '''
@@ -159,7 +161,7 @@ class helpers:
                 
     def are_images_equal(self, my_data, img2):
         '''
-        rough check if images are similar using PIL (avoid numpy which is faster)
+        rough check if images are similar using PIL
         my_data is binary, so convert to PIL format first
         '''
         img1 = self.get_PIL_image(my_data)
@@ -173,14 +175,13 @@ class helpers:
         
     def are_images_equal_experiment(self, my_data, img2):
         '''
-        rough check if images are similar using PIL (avoid numpy which is faster)
+        rough check if images are similar using PIL
         my_data is binary, so convert to PIL format first
         '''
         img1 = self.get_PIL_image(my_data)
         img1 = img1.convert('RGB').resize((384, 216))
         img2 = img2.convert('RGB').resize((384, 216))
-        img3 = ImageChops.difference(img1, img2).convert('L')    #updated 11/3/25 per suggestion in issue #11
-        hist = img3.histogram()
+        hist = ImageChops.difference(img1, img2).convert('L').histogram()
         diff = sum(value * i for i, value in enumerate(hist))/(384*216)
         equal_content = diff <= 5.0                 #pick a threshhold
         self.log.debug('equal_content: {}, diff: {}'.format(equal_content, round(diff, 2)))

@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 # web frontend for gallery display
-# please install flask with the async option (pip install flask[async])
-# please install quart (pip install quart)
-# please install quart_flask_patch (pip install quart_flask_patch)
-# and bootstrap-flask (pip install Bootstrap-Flask)
+# please run pip install -r requirements.txt to install the required libraries
 # V 1.0.0 14/3/25 NW Initial release
-# V 1.0.1 15/3/25 NW Added |safe filter in modal Marco for description and details
+# V 1.0.1 15/3/25 NW Added |safe filter in modal Macro for description and details
 # V 1.1.1 18/3/25 NW updated to load modal dialog on demand
 # V 1.2.0 19/3/25 NW switched from flask to quart for async features, refactor as class
 # V 2.0.0 28/3/25 NW New version with seperate caption display
@@ -18,12 +15,12 @@
 # V 2.1.1 15/4/25 NW General tidy up
 # V 2.2.2 16/4/25 NW Improved startup and shutdown
 # V 2.2.3 17/4/25 NW General simplification
+# V 2.2.4 18/4/25 NW More General simplification
 
 import quart_flask_patch
 import asyncio
 from quart import Quart, render_template, make_response, current_app, websocket
 from flask_bootstrap import Bootstrap5
-from pathlib import Path
 from tempfile import TemporaryDirectory
 import argparse, sys
 import logging
@@ -34,7 +31,7 @@ from hypercorn.asyncio import serve
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 
-__version__ = '2.1.3'
+__version__ = '2.1.4'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -122,7 +119,8 @@ class WebServer(monitor_and_display):
         self.screens = []
         self.ws_id = 0
         self.add_signals()
-        self.api_lock = asyncio.Lock()
+        self.text_lock = asyncio.Lock()
+        self.ws_lock = asyncio.Lock()
         self.exif = ExifData(folder if exif else None, ip)
         self.app = Quart(__name__, static_folder=folder)
         self.bootstrap = Bootstrap5(self.app)
@@ -159,7 +157,7 @@ class WebServer(monitor_and_display):
             self.log.info('DEVELOPMENT Mode')
             server = self.app.run_task(host=self.host, port=self.port, debug=self.debug,  shutdown_trigger=self.shutdown_trigger)
         self.log.info('Serving files from: {}'.format(self.app.static_folder))
-        await asyncio.gather(server, self.start_monitoring(), return_exceptions=True)
+        await asyncio.gather(server, self.start_monitoring(), return_exceptions=False)
         
     def close(self):
         '''
@@ -197,13 +195,11 @@ class WebServer(monitor_and_display):
         '''
         websocket send - update web page with displayed filename on TV
         '''
-        self.log.info('websocket sending started')
-        if len(self.connected) == 1:    # only start one broadcast job
-            await self.broadcast_tv_filename()
-        else:
-            while not self.exit:
-                await asyncio.sleep(1)
-        self.log.warning('websocket sending ended')
+        if not self.ws_lock.locked():           # only start one broadcast job
+            self.log.info('websocket sending started')
+            async with self.ws_lock:    
+                await self.broadcast_tv_filename()
+            self.log.warning('websocket sending ended')
 
     async def receiving(self):
         '''
@@ -219,7 +215,6 @@ class WebServer(monitor_and_display):
         '''
         broadcast filename changes to all websockets connected
         '''
-        self.filename = True
         data={'type':'update'}
         filename = self.filename_changed()                  #filename generator
         try:
@@ -270,6 +265,7 @@ class WebServer(monitor_and_display):
                 await self.ws_send({'type':'update',
                                     'name': 'reload',
                                     'html': html})
+                self.prev_filename = None   #trigger reload of filename
                 
             case _:
                 self.log.info('No match for data type: {}'.format(data['type']))
@@ -453,9 +449,9 @@ class WebServer(monitor_and_display):
     def get_text_file_name(self, filename):
         '''
         find text file name from image file name
-        case insensitive
+        case insensitive - ie finds .TXT and .txt files
         '''
-        text_file = self.get_Path(filename).with_suffix(".TXT")
+        text_file = self.get_Path(filename, suffix=".TXT")
         for file in self.folder.iterdir():
             if file.name.upper() == text_file.name.upper():
                 return file
@@ -469,10 +465,10 @@ class WebServer(monitor_and_display):
         returns None if file not found, or json is invalid and data not in the image exif data
         returns caption data or modal data built from the text or exif data
         '''
-        # use lock to prevent multiple calls for modal and caption
-        async with self.api_lock:
+        # use lock to prevent multiple simultaneous calls for modal and caption
+        async with self.text_lock:
             #default info
-            data = {"id": self.get_Path(filename).with_suffix(""), "name": filename}
+            data = {"id": self.get_Path(filename, suffix=""), "name": filename}
             text = {}
             text_file = self.get_text_file_name(filename)
             if text_file:
@@ -606,13 +602,13 @@ class WebServer(monitor_and_display):
                         contents=[
                             'describe this image',
                             'use text only inline html',
-                            'description is the latin name in html italics',
+                            'description should be the latin name of any animals in html italics or a short description of the scene',
                             'details should be 400 words or less and include behaviour, habitat and simple inline html',
-                            'if there are no animals, describe the scene',
+                            'if there are no animals, describe the scene, and do not mention the absence of animals',
                             'do not include the location',
                             'header should be a plain text caption for a picture with less than 45 characters',
                             'do not include links',
-                            'file name is ()'.format(image_file.with_suffix("").name.replace('_',' ')),
+                            'file name is () which may be a hint to the subject and/or location'.format(image_file.with_suffix("").name.replace('_',' ')),
                             'location is {}'.format(info['location'] if info.get('location') else 'Austrailia' if info.get('credit') == 'wildfoto.au' else 'possibly Austrailia'), #use default location suggestion if missing
                             '()'.format('subject is {}'.format(info['header'] if info.get('header') else '')),
                             '()'.format('description is {}'.format(info['description'] if info.get('description') else '')),
@@ -657,7 +653,7 @@ async def main():
         log.critical('Python version must be 3.10 or higher - exiting')
         sys.exit(1)
     
-    args.folder = Path(args.folder)
+    args.folder = WebServer.get_Path(args.folder)
     
     if not args.folder.is_dir():
         log.warning('folder {} does not exist, exiting'.format(args.folder))
@@ -669,8 +665,8 @@ async def main():
     log.info('ensure Art Mode: {}'.format(args.art_mode))
     
     #get google api_key for AI
-    if Path(args.api_file).is_file():
-        api_key = Path(args.api_file).read_text().replace('\n','')
+    if WebServer.get_Path(args.api_file).is_file():
+        api_key = WebServer.get_Path(args.api_file).read_text().replace('\n','')
     elif args.api_file.upper().endswith('.TXT') or len(args.api_file) != 39:
         api_key = None
     else:
