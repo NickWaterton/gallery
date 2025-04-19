@@ -96,16 +96,16 @@ class monitor_and_display(TVInterface):
             
     def check_time(self, start, duration=None, initial_value=None):
         '''
-        return remaining time before timer expires if greater than 0, check with no duration
-        or sets timer to value if duration set positive, or starts new timer if 0
+        return remaining time before timer expires if greater than 0, check with duration == None
+        or reset timer if duration has value, optionally set initial start value
         '''
         if not self.timing.get(start):
            self.timing[start] = {'start': time.time(), 'duration': 0} 
-        if initial_value is not None:
-           self.timing[start]['start'] = initial_value 
-        if duration is not None:
+        if duration is not None:    #restart timer for duration
             self.timing[start]['start'] = time.time()
-            self.timing[start]['duration'] = self.timing[start].get('duration') or duration
+            self.timing[start]['duration'] = duration
+        if initial_value is not None:
+           self.timing[start]['start'] = initial_value
         remaining = self.timing[start]['duration'] - (time.time() - self.timing[start]['start'])
         self.log.debug('{}: next update in: {}'.format(start, round(remaining, 2)))
         return remaining if remaining > 0 else 0
@@ -259,7 +259,7 @@ class monitor_and_display(TVInterface):
         try:
             content_id = self.uploaded_files[filename]['content_id']
             self.check_time('skip', self.display_for)   #reset timer
-            self.check_time('start', initial_value=0)
+            self.check_time('start', initial_value=0)   #disable timer
             await self.change_art(content_id)
         except Exception as e:
             self.log.warning('error: {}, file: {}'.format(e, filename))
@@ -320,7 +320,7 @@ class monitor_and_display(TVInterface):
             await self.check_dir()
             if self.period == 0:
                 break
-            await self.wait_seconds(self.period)
+            await self.wait_seconds(min(self.period, min([self.check_time(t) for t in self.timing.keys() if self.check_time(t) > 0])))
         
     async def initialize_pil(self):
         '''
