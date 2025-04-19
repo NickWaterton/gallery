@@ -16,6 +16,7 @@
 # V 2.2.2 16/4/25 NW Improved startup and shutdown
 # V 2.2.3 17/4/25 NW General simplification
 # V 2.2.4 18/4/25 NW More General simplification
+# V 2.2.5 19/4/25 NW Fixd timing bug and redo websockets
 
 import quart_flask_patch
 import asyncio
@@ -31,7 +32,7 @@ from hypercorn.asyncio import serve
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 
-__version__ = '2.1.4'
+__version__ = '2.1.5'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -117,7 +118,6 @@ class WebServer(monitor_and_display):
         self.exit = False
         self.text = {}
         self.screens = []
-        self.ws_id = 0
         self.add_signals()
         self.text_lock = asyncio.Lock()
         self.ws_lock = asyncio.Lock()
@@ -205,11 +205,11 @@ class WebServer(monitor_and_display):
         '''
         websocket receive requests from web page
         '''
-        self.log.info('websocket receiving started')
+        self.log.info('WS:{} websocket receiving started'.format(websocket.id))
         while not self.exit:
             data = await websocket.receive_json()
             await self.ws_process(data)      
-        self.log.warning('websocket receiving ended')
+        self.log.warning('WS:{} websocket receiving ended'.format(websocket.id))
         
     async def broadcast_tv_filename(self):
         '''
@@ -223,13 +223,11 @@ class WebServer(monitor_and_display):
                 data['name'] = await anext(filename)        #blocks until next filename is available
                 await self.set_screens(data['name'] not in ['off', 'refresh'])
                 for websoc in self.connected:
-                    if websoc.skip:
-                        self.log.info('WS({}): will be skipping: {}'.format(websoc.id, websoc.skip))
                     if data['name'] in websoc.skip:         #skip if image was previously requested, as modal is already displayed
                         self.log.info('WS({}): Not sending {} as image was previously selected'.format(websoc.id, data['name']))
                         websoc.skip.discard(data['name'])
-                        continue
-                    await self.ws_send(data, websoc)
+                    else:
+                        await self.ws_send(data, websoc)
         finally:
             await self.set_screens(False)
         
@@ -237,8 +235,7 @@ class WebServer(monitor_and_display):
         '''
         process and respond to websocket data request
         '''
-        websoc = self.get_ws()
-        self.log.info('WS({}): received from ws: {}'.format(websoc.id, data))
+        self.log.info('WS({}): received from ws: {}'.format(websocket.id, data))
         #Python 3.10 onwards only!
         match data['type']:
             case 'modal':
@@ -253,8 +250,8 @@ class WebServer(monitor_and_display):
                 
             case 'display':
                 #display filename on TV via manual selection
-                self.log.info('show image: {}'.format(data['name']))
-                websoc.skip.add(data['name'])
+                self.log.info('WS:{} show image: {}'.format(websocket.id, data['name']))
+                websocket.skip.add(data['name'])
                 await self.set_image_from_filename(data['name'])
                 
             case 'reload':
@@ -286,17 +283,11 @@ class WebServer(monitor_and_display):
         '''
         send json to websocket
         '''
-        ws = websoc or self.get_ws()
+        ws = websoc or websocket
         if not self.debug:
             self.log.info('WS({}): sending: type: {}, name: {}'.format(ws.id, data.get('type'), data.get('name', data)))
         self.log.debug('WS({}): sending: {}'.format(ws.id, data))
         await ws.send_json(data)
-            
-    def get_ws(self):
-        '''
-        get current websocket object
-        '''
-        return websocket._get_current_object()
         
     async def initialize_ws(self):
         '''
@@ -305,35 +296,42 @@ class WebServer(monitor_and_display):
         await self.ws_send({'type': 'theme', 'name': str(self.theme)})  #send 'theme' with name of theme to update display on first connection
         await self.ws_send({'type': 'kiosk', 'name': str(self.kiosk)})  #send 'kiosk' with name as kiosk mode
         self.prev_filename = None   #trigger reload of filename
+        
+    def get_ws_id(self):
+        '''
+        returns next sequential ws id as an integer, with id's being resued when disconnected
+        just for logging id's
+        '''
+        used = [ws.id for ws in self.connected]
+        return [x for x in range(1, len(used)+2) if x not in used][0]
 
     async def ws(self):
         '''
         start websocket
+        NOTE: websocket is a context based global, so each websocket variable refers to it's own context (ie the websocket that created it)
         '''
         try:
-            self.ws_id += 1
-            websoc = self.get_ws()
-            self.connected.add(websoc)
-            websoc.skip = set()
-            websoc.id = self.ws_id
-            self.log.info('{} websocket connected'.format(len(self.connected)))
+            websocket.skip = set()
+            websocket.id = self.get_ws_id()
+            self.connected.add(websocket._get_current_object())
+            self.log.info('WS:{}, (total:{}) websocket connected'.format(websocket.id, len(self.connected)))
             await self.initialize_ws()
             producer = asyncio.create_task(self.sending())
             consumer = asyncio.create_task(self.receiving())
             await asyncio.gather(producer, consumer)
         except asyncio.exceptions.CancelledError:
-            self.log.info('WS({}): websocket cancelled'.format(websoc.id))
+            self.log.info('WS({}): websocket cancelled'.format(websocket.id))
         except Exception as e:
             self.log.exception(e)
         finally:
-            self.log.info('WS({}): cancelling websocket tasks'.format(websoc.id))
+            self.log.info('WS({}): cancelling websocket tasks'.format(websocket.id))
             try:
                 consumer.cancel()
                 producer.cancel()
             except Exception:
                 pass
-            self.connected.discard(websoc)
-        self.log.warning('WS({}): websocket closed'.format(websoc.id))
+            self.connected.discard(websocket)
+        self.log.warning('WS({}): websocket closed'.format(websocket.id))
         
     def get_data(self):
         '''

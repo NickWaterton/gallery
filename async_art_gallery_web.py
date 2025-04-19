@@ -270,6 +270,7 @@ class monitor_and_display(TVInterface):
         self.updated is intiially True
         '''
         while not self.exit:
+            self.log.debug('checking art mode')
             art_mode = await self.tv_in_artmode()
             if self.updated:
                 self.updated = False
@@ -320,7 +321,7 @@ class monitor_and_display(TVInterface):
             await self.check_dir()
             if self.period == 0:
                 break
-            await self.wait_seconds(min(self.period, min([self.check_time(t) for t in self.timing.keys() if self.check_time(t) > 0])))
+            await self.wait_seconds(min(self.period, *[self.check_time(t) for t in self.timing.keys() if self.check_time(t) > 0] or [self.period]))
         
     async def initialize_pil(self):
         '''
