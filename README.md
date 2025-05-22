@@ -138,15 +138,15 @@ No need to reinstall anything, unless told to do so.
 ### Basic
 
 The entry point is `web_interface.py`, the other files are resources used by the web interface. The command line options are:
-```
+```bash
 nick@raspberrypi:~/Scripts/gallery $ ./web_interface.py -h
 usage: web_interface.py [-h] [-p PORT] [-f FOLDER] [-m MATTE] [-t TOKEN_FILE] [-u UPDATE] [-c CHECK] [-d DISPLAY_FOR]
                         [-mo {modal-sm,modal-lg,modal-xl,modal-fullscreen,modal-fullscreen-sm-down,modal-fullscreen-md-down,modal-fullscreen-lg-down,modal-fullscreen-xl-down,modal-fullscreen-xxl-down}]
                         [-th {None,cerulian,cosmo,cyborg,darkly,flatly,journal,litera,lumen,lux,materia,minty,morph,pulse,quartz,sandstone,simplex,sketchy,slate,solar,spacelab,suerhero,united,vapour,yeti,zephyr,dark}]
-                        [-ph PHOTOGRAPHER] [-g API_FILE] [-sf] [-s] [-K] [-P] [-A] [-S] [-O] [-F] [-X] [-D]
+                        [-ph PHOTOGRAPHER] [-ca CAPTION_HDMI] [-di DISPLAY_HDMI] [-g API_FILE] [-sf] [-s] [-K] [-P] [-A] [-S] [-O] [-F] [-X] [-D]
                         ip
 
-Async Art gallery for Samsung Frame TV Version: 2.1.0
+Async Art gallery for Samsung Frame TV Version: 2.1.6
 
 positional arguments:
   ip                    ip address of TV (default: None))
@@ -172,6 +172,10 @@ options:
                         theme to apply to display (default: None))
   -ph PHOTOGRAPHER, --photographer PHOTOGRAPHER
                         default photographer to use (default: Paul Thompsen))
+  -ca CAPTION_HDMI, --caption_hdmi CAPTION_HDMI
+                        caption display HDMI (0=off, default: 1))
+  -di DISPLAY_HDMI, --display_hdmi DISPLAY_HDMI
+                        buttons display HDMI (0=off, default: 0))
   -g API_FILE, --api_file API_FILE
                         default google ai api key file to use, or google API_KEY (default: google_ai_api_key.txt))
   -sf, --serif_font     use Serif Font for caption display (default: False))
