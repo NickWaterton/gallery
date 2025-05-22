@@ -17,6 +17,7 @@
 # V 2.2.3 17/4/25 NW General simplification
 # V 2.2.4 18/4/25 NW More General simplification
 # V 2.2.5 19/4/25 NW Fixd timing bug and redo websockets
+# V 2.2.6 22/5/2025 NW modified uploaded_files.json to store data by ip address (so multiple copies of program can be run), added ability to set caption and display hdmi port
 
 import quart_flask_patch
 import asyncio
@@ -32,7 +33,7 @@ from hypercorn.asyncio import serve
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 
-__version__ = '2.1.5'
+__version__ = '2.1.6'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -55,6 +56,8 @@ def parseargs():
                                                                 'united', 'vapour', 'yeti', 'zephyr', 'dark'],
                                          help='theme to apply to display (default: %(default)s))')
     parser.add_argument('-ph','--photographer', action="store", type=str, default="Paul Thompsen", help='default photographer to use (default: %(default)s))')
+    parser.add_argument('-ca','--caption_hdmi', action="store", type=int, default=1, help='caption display HDMI (0=off, default: %(default)s))')
+    parser.add_argument('-di','--display_hdmi', action="store", type=int, default=0, help='buttons display HDMI (0=off, default: %(default)s))')
     parser.add_argument('-g','--api_file', action="store", type=str, default="google_ai_api_key.txt", help='default google ai api key file to use, or google API_KEY (default: %(default)s))')
     parser.add_argument('-sf','--serif_font', action='store_true', default=False, help='use Serif Font for caption display (default: %(default)s))')
     parser.add_argument('-s','--sync', action='store_false', default=True, help='automatically syncronize (needs Pil library) (default: %(default)s))')
@@ -87,6 +90,8 @@ class WebServer(monitor_and_display):
                            port            = 5000,
                            modal_size      = '',
                            photographer    = None,
+                           caption_hdmi    = 1,
+                           display_hdmi    = 0,
                            theme           = None,
                            serif_font      = False,
                            exif            = True,
@@ -110,6 +115,8 @@ class WebServer(monitor_and_display):
         self.port = port
         self.modal_size = modal_size
         self.photographer = photographer
+        self.caption_hdmi = caption_hdmi
+        self.display_hdmi = display_hdmi
         self.theme = theme
         self.serif_font = serif_font
         self.kiosk = kiosk
@@ -135,12 +142,23 @@ class WebServer(monitor_and_display):
         initiialize caption and display screens if present
         '''
         self.screens = await self.get_connected_screens_status()
-        if len(self.screens) >= 1:
-            self.log.info('Starting Caption Screen')
-            asyncio.create_task(self.start_browser_with_delay(app='http://localhost:5000/caption', pos='0,0', kiosk=True))  #caption display
-        if len(self.screens) >= 2:
-            self.log.info('Starting Display Screen')
-            asyncio.create_task(self.start_browser_with_delay(app='http://localhost:5000/', pos='1420,0'))                  #buttons display
+        if self.caption_hdmi == self.display_hdmi and self.caption_hdmi != 0:
+            self.log.warning('Button Display HDMI is the same as caption HDMI - disabling buttons display')
+            self.display_hdmi = 0
+            
+        if self.get_screen(self.caption_hdmi) not in self.screens:
+            self.log.warning('no caption display {}'.format('' if self.caption_hdmi <=0 else 'on HDMI {}'.format(self.caption_hdmi)))
+            
+        if self.get_screen(self.display_hdmi) not in self.screens:
+            self.log.warning('no buttons display {}'.format('' if self.display_hdmi <=0 else 'on HDMI {}'.format(self.display_hdmi)))
+            
+        for screen in self.screens:
+            if self.get_screen(self.caption_hdmi) == screen:
+                self.log.info('Starting Caption Screen on {}'.format(screen))
+                asyncio.create_task(self.start_browser_with_delay(app='http://localhost:{}/caption'.format(self.port), pos='{},0'.format((self.caption_hdmi-1)*1420), kiosk=True))  #caption display
+            if self.get_screen(self.display_hdmi) == screen:
+                self.log.info('Starting Button Screen on {}'.format(screen))
+                asyncio.create_task(self.start_browser_with_delay(app='http://localhost:{}/'.format(self.port), pos='{},0'.format((self.button_hdmi-1)*1420)))                      #button display
         
     async def serve_forever(self, production=False):
         '''
@@ -358,12 +376,20 @@ class WebServer(monitor_and_display):
         image_names = self.get_data()
         return await render_template('home.html', names=image_names, kiosk=str(self.kiosk).lower(), theme=self.theme)
         
+    def get_screen(self, hdmi):
+        '''
+        return screen id from hdmi number, or None if hdmi is 0
+        '''
+        return 'HDMI-A-{}'.format(hdmi) if hdmi > 0 else None
+        
     async def set_screens(self, on):
         '''
         Turn all attached screens on or off
         '''
-        for screen in self.screens:                 #turn screens on or off
-            await self.caption_screen_control(on, screen=screen.split(' ')[0])
+        if self.caption_hdmi:
+            await self.caption_screen_control(on, screen=self.get_screen(self.caption_hdmi))    #turn screen on or off
+        if self.display_hdmi:
+            await self.caption_screen_control(on, screen=self.get_screen(self.display_hdmi))    #turn screen on or off
         
     async def get_connected_screens_status(self, screen=None):
         '''
@@ -395,19 +421,19 @@ class WebServer(monitor_and_display):
         lines = data.decode().split('\n') if data else []
         for i, line in enumerate(lines):
             if screen:
-                if screen in line:  #Find HDMI-A-1 "HOT WaveShsare 0x00000001 (HDMI-A-1)"
+                if screen in line:  #Find HDMI-A-X "HOT WaveShsare 0x00000001 (HDMI-A-X)"
                     is_on = 'yes' in lines[min(len(lines)-1, i+1)] #check if Enabled: yes 
                     break
             else:
                 if 'HDMI-A' in line:
-                   screens.append(line)
+                   screens.append(line.split(' ')[0])
                    self.log.info('found attached screen: {}'.format(line))
         await proc.wait()
         return is_on if screen else screens
         
     async def caption_screen_control(self, on=True, screen='HDMI-A-1'):
         '''
-        Turn caption screen on or off using:
+        Turn caption/display screen on or off using:
         wlr-randr --output HDMI-A-1 --off or --on
         check to see if screen is on first if turning on as screen flickers sending --on again, if already on.
         '''
@@ -688,6 +714,8 @@ async def main():
                      port            = args.port,
                      modal_size      = args.modal,
                      photographer    = args.photographer,
+                     caption_hdmi    = args.caption_hdmi,
+                     display_hdmi    = args.display_hdmi,
                      theme           = args.theme,
                      serif_font      = args.serif_font,
                      exif            = args.exif,
