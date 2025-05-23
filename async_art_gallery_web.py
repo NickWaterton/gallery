@@ -47,7 +47,7 @@ class monitor_and_display(TVInterface):
         self.matte = matte
         self.sequential = sequential
         self.on = on
-        self.program_data_path = self.get_Path('./uploaded_files.json')
+        self.program_data_path = self.get_Path('./uploaded_files_{}.json'.format(self.ip.replace('.','')))
         self.uploaded_files = {}
         self.fav = set()
         self.timing = {}
@@ -126,7 +126,6 @@ class monitor_and_display(TVInterface):
         '''
         if self.program_data_path.is_file():
             program_data = json.loads(self.program_data_path.read_text())
-            program_data = program_data.get(self.ip, program_data)
             self.uploaded_files = program_data.get('uploaded_files', program_data)
             self.check_time('start', self.update_time, program_data.get('last_update', time.time()))
         else:
@@ -141,7 +140,6 @@ class monitor_and_display(TVInterface):
         '''
         
         program_data = {'last_update': self.timing.get('start', {}).get('start'), 'uploaded_files': self.uploaded_files}
-        program_data = {self.ip: program_data}
         self.program_data_path.write_text(json.dumps(program_data, indent=2))
         
     async def upload_files(self, filenames):

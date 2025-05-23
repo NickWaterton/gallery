@@ -38,7 +38,7 @@ class ExifData(helpers):
         #TAGS.update(self.additional_tags)
         self.TAGS = self.update_tags(self.additional_tags)
         self.gps_task = None
-        self.filename = self.get_Path('./gps_data.json')
+        self.filename = self.get_Path('./gps_data_{}.json'.format(self.ip.replace('.','')))
         self.get_files()
         
     def get_files(self, image_names=None):
