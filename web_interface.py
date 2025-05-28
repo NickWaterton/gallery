@@ -158,7 +158,7 @@ class WebServer(monitor_and_display):
                 asyncio.create_task(self.start_browser_with_delay(app='http://localhost:{}/caption'.format(self.port), pos='{},0'.format((self.caption_hdmi-1)*1420), kiosk=True))  #caption display
             if self.get_screen(self.display_hdmi) == screen:
                 self.log.info('Starting Button Screen on {}'.format(screen))
-                asyncio.create_task(self.start_browser_with_delay(app='http://localhost:{}/'.format(self.port), pos='{},0'.format((self.button_hdmi-1)*1420)))                      #button display
+                asyncio.create_task(self.start_browser_with_delay(app='http://localhost:{}/'.format(self.port), pos='{},0'.format((self.display_hdmi-1)*1420)))                      #button display
         
     async def serve_forever(self, production=False):
         '''
