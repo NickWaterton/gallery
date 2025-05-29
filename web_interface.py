@@ -18,6 +18,7 @@
 # V 2.2.4 18/4/25 NW More General simplification
 # V 2.2.5 19/4/25 NW Fixd timing bug and redo websockets
 # V 2.2.6 22/5/2025 NW modified uploaded_files.json to store data by ip address (so multiple copies of program can be run), added ability to set caption and display hdmi port
+# V 2.2.7 28/5/2025 NW Multiple fixes for Wayland multiple displays, introduction of movemouse.py
 
 import quart_flask_patch
 import asyncio
@@ -32,8 +33,9 @@ from hypercorn.asyncio import serve
 
 from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
+from movemouse import WaylandClient
 
-__version__ = '2.1.6'
+__version__ = '2.1.7'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -117,6 +119,7 @@ class WebServer(monitor_and_display):
         self.photographer = photographer
         self.caption_hdmi = caption_hdmi
         self.display_hdmi = display_hdmi
+        self.width = self.height = 0    #screen settings
         self.theme = theme
         self.serif_font = serif_font
         self.kiosk = kiosk
@@ -125,6 +128,7 @@ class WebServer(monitor_and_display):
         self.exit = False
         self.text = {}
         self.screens = []
+        self.browsers = []
         self.add_signals()
         self.text_lock = asyncio.Lock()
         self.ws_lock = asyncio.Lock()
@@ -142,23 +146,72 @@ class WebServer(monitor_and_display):
         initiialize caption and display screens if present
         '''
         self.screens = await self.get_connected_screens_status()
+        await self.set_screens(False)
         if self.caption_hdmi == self.display_hdmi and self.caption_hdmi != 0:
             self.log.warning('Button Display HDMI is the same as caption HDMI - disabling buttons display')
             self.display_hdmi = 0
-            
-        if self.get_screen(self.caption_hdmi) not in self.screens:
+    
+        if self.caption_hdmi not in self.screens.keys():
             self.log.warning('no caption display {}'.format('' if self.caption_hdmi <=0 else 'on HDMI {}'.format(self.caption_hdmi)))
             
-        if self.get_screen(self.display_hdmi) not in self.screens:
+        if self.display_hdmi not in self.screens.keys():
             self.log.warning('no buttons display {}'.format('' if self.display_hdmi <=0 else 'on HDMI {}'.format(self.display_hdmi)))
             
-        for screen in self.screens:
-            if self.get_screen(self.caption_hdmi) == screen:
-                self.log.info('Starting Caption Screen on {}'.format(screen))
-                asyncio.create_task(self.start_browser_with_delay(app='http://localhost:{}/caption'.format(self.port), pos='{},0'.format((self.caption_hdmi-1)*1420), kiosk=True))  #caption display
-            if self.get_screen(self.display_hdmi) == screen:
-                self.log.info('Starting Button Screen on {}'.format(screen))
-                asyncio.create_task(self.start_browser_with_delay(app='http://localhost:{}/'.format(self.port), pos='{},0'.format((self.display_hdmi-1)*1420)))                      #button display
+        #configure and turn on screens
+        for hdmi, val in self.screens.items():
+            if self.caption_hdmi == hdmi:
+                self.log.info('Configuring Caption Screen on {}'.format(val['name']))
+                if self.multi_screen():
+                    val['rot'] = 90
+                await self.screen_control(True, hdmi=hdmi, force=True)
+            if self.display_hdmi == hdmi:
+                self.log.info('Configuring Button Screen on {}'.format(val['name']))
+                await self.screen_control(True, hdmi=hdmi, force=True)
+                
+        #reload screen status
+        self.screens = await self.get_connected_screens_status()
+        self.get_screen_size()
+        await self.restart_browsers()
+                
+    async def restart_browsers(self, delay=5):
+        '''
+        close and reopen browser windows
+        '''
+        if self.browsers:
+            self.log.info('closing browsers')
+            for br in self.browsers:
+                if br.returncode == None:
+                    br.terminate()
+                while br.returncode == None:
+                    await asyncio.sleep(1)
+            self.browsers = []
+            self.log.info('browsers closed.')
+        self.log.info('starting browser windows')
+        for hdmi, val in self.screens.items():
+            if self.caption_hdmi == hdmi:
+                self.log.info('Starting Caption Screen on {}'.format(val['name']))
+                asyncio.create_task(self.start_browser_with_delay(app='http://localhost:{}/caption'.format(self.port), pos=val['pos'], kiosk=True, delay=delay))  #caption display
+                await asyncio.sleep(2)
+            if self.display_hdmi == hdmi:
+                self.log.info('Starting Button Screen on {}'.format(val['name']))
+                asyncio.create_task(self.start_browser_with_delay(app='http://localhost:{}/'.format(self.port), pos=val['pos'], kiosk=True, delay=delay))        #button display
+                await asyncio.sleep(2)
+                
+    def get_screen_size(self):
+        '''
+        get width and height of screen(s)
+        '''
+        for val in self.screens.values():
+            if val.get('res'):
+                self.width += val['res'][0]
+                self.height = max(val['res'][1], self.height)
+        self.log.info('{} screens detected, width: {} height: {}'.format(len(self.screens), self.width, self.height))
+        
+    def multi_screen(self):
+        '''
+        do we have two screens connected
+        '''
+        return len(self.screens) > 1
         
     async def serve_forever(self, production=False):
         '''
@@ -239,7 +292,8 @@ class WebServer(monitor_and_display):
             while not self.exit:
                 #stream filename changes on TV to web page
                 data['name'] = await anext(filename)        #blocks until next filename is available
-                await self.set_screens(data['name'] not in ['off', 'refresh'])
+                #if we have multiple screens, turning them off and then on messes up the browser windows, so don't do it for a refresh
+                await self.set_screens(data['name'] not in (['off'] if self.multi_screen() else ['off', 'refresh']))
                 for websoc in self.connected:
                     if data['name'] in websoc.skip:         #skip if image was previously requested, as modal is already displayed
                         self.log.info('WS({}): Not sending {} as image was previously selected'.format(websoc.id, data['name']))
@@ -247,7 +301,9 @@ class WebServer(monitor_and_display):
                     else:
                         await self.ws_send(data, websoc)
         finally:
-            await self.set_screens(False)
+            if self.exit:
+                self.log.info('turning off all screens on EXIT')
+                asyncio.create_task(self.set_screens(False))
         
     async def ws_process(self, data):
         '''
@@ -376,20 +432,28 @@ class WebServer(monitor_and_display):
         image_names = self.get_data()
         return await render_template('home.html', names=image_names, kiosk=str(self.kiosk).lower(), theme=self.theme)
         
-    def get_screen(self, hdmi):
+    async def move_mouse(self, x, y):
         '''
-        return screen id from hdmi number, or None if hdmi is 0
+        with Wayland, have to move the mouse to the screen we want the windown to appear on
+        so, have to do this nasty thing
         '''
-        return 'HDMI-A-{}'.format(hdmi) if hdmi > 0 else None
+        client = WaylandClient(self.width, self.height)
+        client.move_mouse(x, y)
+        await asyncio.sleep(0.1)
         
     async def set_screens(self, on):
         '''
         Turn all attached screens on or off
         '''
-        if self.caption_hdmi:
-            await self.caption_screen_control(on, screen=self.get_screen(self.caption_hdmi))    #turn screen on or off
-        if self.display_hdmi:
-            await self.caption_screen_control(on, screen=self.get_screen(self.display_hdmi))    #turn screen on or off
+        self.log.debug('turning all screens {}'.format('ON' if on else 'OFF'))
+        result = []
+        for hdmi in self.screens.keys():
+            if hdmi in [self.caption_hdmi, self.display_hdmi]:
+                result.append(await self.screen_control(on, hdmi=hdmi))    #turn screen on or off
+                
+        if self.multi_screen() and any(result):
+            if on:
+                asyncio.create_task(self.restart_browsers(1))
         
     async def get_connected_screens_status(self, screen=None):
         '''
@@ -413,7 +477,9 @@ class WebServer(monitor_and_display):
         Connector 1 (42) HDMI-A-2 (disconnected)
           Encoder 1 (41) TMDS
         '''
-        screens = []
+        screens = {}
+        sc = None
+        count = 0
         is_on = False
         proc = await asyncio.create_subprocess_exec('/usr/bin/wlr-randr', stdout=asyncio.subprocess.PIPE)
         # Read output and process line by line
@@ -422,51 +488,89 @@ class WebServer(monitor_and_display):
         for i, line in enumerate(lines):
             if screen:
                 if screen in line:  #Find HDMI-A-X "HOT WaveShsare 0x00000001 (HDMI-A-X)"
-                    is_on = 'yes' in lines[min(len(lines)-1, i+1)] #check if Enabled: yes 
+                    is_on = 'yes' in lines[min(len(lines)-1, i+1)] #check if Enabled: yes
                     break
             else:
                 if 'HDMI-A' in line:
-                   screens.append(line.split(' ')[0])
-                   self.log.info('found attached screen: {}'.format(line))
+                    count+=1
+                    sc = line.split(' ')[0]
+                    screens[count] = {'name':sc}
+                    self.log.info('found attached screen: {}'.format(line))
+                if 'Enabled:' in line and 'no' in line and sc:
+                    sc = None
+                    continue
+                if 'current' in line and sc:
+                    self.log.info(line.strip())
+                    x, y = line.strip().split(' ')[0].split('x')
+                    screens[count]['res'] = (int(x),int(y))
+                if 'Position:' in line and sc:
+                    self.log.info(line.strip())
+                    x, y = line.strip().split(' ')[1].split(',')
+                    screens[count]['pos'] = (int(x),int(y))
+                if 'Transform:' in line and sc:
+                    self.log.info(line.strip())
+                    tr = line.strip().split(' ')[1]
+                    screens[count]['rot'] = 0 if tr == 'normal' else int(tr)
+                    #reverse x/y if screen rotated
+                    if screens[count]['rot'] in [90, 270]:
+                        screens[count]['res'] = (screens[count]['res'][1], screens[count]['res'][0])
+                    sc = None
+                    
         await proc.wait()
-        return is_on if screen else screens
+        #reverse sort the order of screens (if two connected) as it matters what order they are turned on and off in
+        return is_on if screen else dict(sorted(screens.items(), reverse=True))
         
-    async def caption_screen_control(self, on=True, screen='HDMI-A-1'):
+    async def screen_control(self, on=True, hdmi=1, force=False):
         '''
         Turn caption/display screen on or off using:
         wlr-randr --output HDMI-A-1 --off or --on
         check to see if screen is on first if turning on as screen flickers sending --on again, if already on.
         '''
-        if any([s for s in self.screens if screen in s]):   #if our screen is one of the detected screens
+        screen = self.screens.get(hdmi,{}).get('name')
+        if screen:   #if our screen is one of the detected screens
             is_on = await self.get_connected_screens_status(screen) if on else False
-            if (on and not is_on) or not on:
-                proc = await asyncio.create_subprocess_exec('/usr/bin/wlr-randr', '--output', screen, '--on' if on else '--off')
+            if (on and not is_on) or not on or force:
+                self.log.info('Turning: {} {}'.format(screen, 'ON' if on else 'OFF'))
+                rot = self.screens[hdmi].get('rot', 0)
+                #pos = self.screens[hdmi]['pos']
+                proc = await asyncio.create_subprocess_exec('/usr/bin/wlr-randr',
+                                                            '--output', screen,
+                                                            '--on' if on else '--off',
+                                                            '--transform', '{}'.format('normal' if rot == 0 else rot),
+                                                            #'--pos', '{},{}'.format(*pos)
+                                                            )
                 # Wait for the subprocess exit.
                 await proc.wait()
+                return (on and not is_on) or not on #for determining if we need to restart the browsers
         
-    async def start_browser_with_delay(self, app, pos, kiosk, delay=1):
+    async def start_browser_with_delay(self, app, pos, kiosk, delay=5):
         '''
         start browser on display after delay - call as task
+        the delay is to allow time for the web server to start up
         '''
         await asyncio.sleep(delay)
         await self.start_browser_on_display(app, pos, kiosk)
         
-    async def start_browser_on_display(self, app='http://localhost:5000/caption', pos='0,0', kiosk=True):
+    async def start_browser_on_display(self, app='http://localhost:5000/caption', pos=(0,0), kiosk=True):
         '''
         display web page (app) on screen in possition given by pos (x, y) - seconds screen would start at 1420, so 1420,0
         derfaults are for the caption display, second display would be app='http://localhost:5000', pos='1420,0'
         Will not return until browser exits
         '''
+        if self.multi_screen():
+            await self.move_mouse(pos[0], 0)
+        self.log.info('starting browser: {}'.format(app))
         proc = await asyncio.create_subprocess_exec('/usr/bin/chromium-browser',
                                                     '--kiosk' if kiosk else '',
                                                     '--noerrdialogs',
                                                     '--disable-infobars',
                                                     '--app={}'.format(app),
                                                     '--start-fullscreen',
-                                                    '--window-position={}'.format(pos),
+                                                    '--window-position={},()'.format(pos[0],pos[1]),
                                                     '--user-data-dir={}'.format(TemporaryDirectory().name),
                                                     '--enable-features=OverlayScrollbar',
                                                     stderr=asyncio.subprocess.DEVNULL)
+        self.browsers.append(proc)
         # Wait for the subprocess exit.
         await proc.wait()
         
