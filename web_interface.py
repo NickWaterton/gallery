@@ -19,6 +19,7 @@
 # V 2.2.5 19/4/25 NW Fixd timing bug and redo websockets
 # V 2.2.6 22/5/2025 NW modified uploaded_files.json to store data by ip address (so multiple copies of program can be run), added ability to set caption and display hdmi port
 # V 2.2.7 28/5/2025 NW Multiple fixes for Wayland multiple displays, introduction of movemouse.py
+# V 2.7.8 30/5/2025 NW Minor display fixes. Add rotation options
 
 import quart_flask_patch
 import asyncio
@@ -35,7 +36,7 @@ from async_art_gallery_web import monitor_and_display
 from exif_data import ExifData
 from movemouse import WaylandClient
 
-__version__ = '2.1.7'
+__version__ = '2.1.8'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -58,8 +59,10 @@ def parseargs():
                                                                 'united', 'vapour', 'yeti', 'zephyr', 'dark'],
                                          help='theme to apply to display (default: %(default)s))')
     parser.add_argument('-ph','--photographer', action="store", type=str, default="Paul Thompsen", help='default photographer to use (default: %(default)s))')
-    parser.add_argument('-ca','--caption_hdmi', action="store", type=int, default=1, help='caption display HDMI (0=off, default: %(default)s))')
-    parser.add_argument('-di','--display_hdmi', action="store", type=int, default=0, help='buttons display HDMI (0=off, default: %(default)s))')
+    parser.add_argument('-ca','--caption_hdmi', action="store", type=int, default=1, choices=[0,1,2], help='caption display HDMI (0=off, default: %(default)s))')
+    parser.add_argument('-di','--display_hdmi', action="store", type=int, default=0, choices=[0,1,2], help='buttons display HDMI (0=off, default: %(default)s))')
+    parser.add_argument('-car','--caption_rot', action="store", type=str, default='90', choices=['normal', 'flipped','90','180','270','flipped-90','flipped-180','flipped-270'], help='caption display rotation (default: %(default)s))')
+    parser.add_argument('-dir','--display_rot', action="store", type=str, default='normal', choices=['normal', 'flipped','90','180','270','flipped-90','flipped-180','flipped-270'], help='buttons display rotation (default: %(default)s))')
     parser.add_argument('-g','--api_file', action="store", type=str, default="google_ai_api_key.txt", help='default google ai api key file to use, or google API_KEY (default: %(default)s))')
     parser.add_argument('-sf','--serif_font', action='store_true', default=False, help='use Serif Font for caption display (default: %(default)s))')
     parser.add_argument('-s','--sync', action='store_false', default=True, help='automatically syncronize (needs Pil library) (default: %(default)s))')
@@ -94,6 +97,8 @@ class WebServer(monitor_and_display):
                            photographer    = None,
                            caption_hdmi    = 1,
                            display_hdmi    = 0,
+                           caption_rot     = '90',
+                           display_rot     = 'normal',
                            theme           = None,
                            serif_font      = False,
                            exif            = True,
@@ -119,6 +124,8 @@ class WebServer(monitor_and_display):
         self.photographer = photographer
         self.caption_hdmi = caption_hdmi
         self.display_hdmi = display_hdmi
+        self.caption_rot = caption_rot
+        self.display_rot = display_rot
         self.width = self.height = 0    #screen settings
         self.theme = theme
         self.serif_font = serif_font
@@ -127,7 +134,7 @@ class WebServer(monitor_and_display):
         self.connected = set()
         self.exit = False
         self.text = {}
-        self.screens = []
+        self.screens = {}
         self.browsers = []
         self.add_signals()
         self.text_lock = asyncio.Lock()
@@ -145,6 +152,9 @@ class WebServer(monitor_and_display):
         '''
         initiialize caption and display screens if present
         '''
+        if self.caption_hdmi == 0 and self.display_hdmi == 0:
+            self.log.info('No displays selected')
+            return
         self.screens = await self.get_connected_screens_status()
         await self.set_screens(False)
         if self.caption_hdmi == self.display_hdmi and self.caption_hdmi != 0:
@@ -161,11 +171,11 @@ class WebServer(monitor_and_display):
         for hdmi, val in self.screens.items():
             if self.caption_hdmi == hdmi:
                 self.log.info('Configuring Caption Screen on {}'.format(val['name']))
-                if self.multi_screen():
-                    val['rot'] = 90
+                val['tra'] = self.caption_rot
                 await self.screen_control(True, hdmi=hdmi, force=True)
             if self.display_hdmi == hdmi:
                 self.log.info('Configuring Button Screen on {}'.format(val['name']))
+                val['tra'] = self.display_rot
                 await self.screen_control(True, hdmi=hdmi, force=True)
                 
         #reload screen status
@@ -293,7 +303,7 @@ class WebServer(monitor_and_display):
                 #stream filename changes on TV to web page
                 data['name'] = await anext(filename)        #blocks until next filename is available
                 #if we have multiple screens, turning them off and then on messes up the browser windows, so don't do it for a refresh
-                await self.set_screens(data['name'] not in (['off'] if self.multi_screen() else ['off', 'refresh']))
+                await self.set_screens(data['name'] not in (['off'] if self.display_hdmi else ['off', 'refresh']))
                 for websoc in self.connected:
                     if data['name'] in websoc.skip:         #skip if image was previously requested, as modal is already displayed
                         self.log.info('WS({}): Not sending {} as image was previously selected'.format(websoc.id, data['name']))
@@ -479,7 +489,6 @@ class WebServer(monitor_and_display):
         '''
         screens = {}
         sc = None
-        count = 0
         is_on = False
         proc = await asyncio.create_subprocess_exec('/usr/bin/wlr-randr', stdout=asyncio.subprocess.PIPE)
         # Read output and process line by line
@@ -492,9 +501,9 @@ class WebServer(monitor_and_display):
                     break
             else:
                 if 'HDMI-A' in line:
-                    count+=1
                     sc = line.split(' ')[0]
-                    screens[count] = {'name':sc}
+                    hdmi = int(sc.split('-')[-1])
+                    screens[hdmi] = {'name':sc}
                     self.log.info('found attached screen: {}'.format(line))
                 if 'Enabled:' in line and 'no' in line and sc:
                     sc = None
@@ -502,18 +511,19 @@ class WebServer(monitor_and_display):
                 if 'current' in line and sc:
                     self.log.info(line.strip())
                     x, y = line.strip().split(' ')[0].split('x')
-                    screens[count]['res'] = (int(x),int(y))
+                    screens[hdmi]['res'] = (int(x),int(y))
                 if 'Position:' in line and sc:
                     self.log.info(line.strip())
                     x, y = line.strip().split(' ')[1].split(',')
-                    screens[count]['pos'] = (int(x),int(y))
+                    screens[hdmi]['pos'] = (int(x),int(y))
                 if 'Transform:' in line and sc:
                     self.log.info(line.strip())
                     tr = line.strip().split(' ')[1]
-                    screens[count]['rot'] = 0 if tr == 'normal' else int(tr)
+                    screens[hdmi]['rot'] = 0 if tr in ['normal', 'flipped'] else int(tr.replace('flipped-',''))
+                    screens[hdmi]['tra'] = tr.strip()
                     #reverse x/y if screen rotated
-                    if screens[count]['rot'] in [90, 270]:
-                        screens[count]['res'] = (screens[count]['res'][1], screens[count]['res'][0])
+                    if screens[hdmi]['rot'] in [90, 270]:
+                        screens[hdmi]['res'] = screens[hdmi]['res'][::-1]
                     sc = None
                     
         await proc.wait()
@@ -531,13 +541,11 @@ class WebServer(monitor_and_display):
             is_on = await self.get_connected_screens_status(screen) if on else False
             if (on and not is_on) or not on or force:
                 self.log.info('Turning: {} {}'.format(screen, 'ON' if on else 'OFF'))
-                rot = self.screens[hdmi].get('rot', 0)
-                #pos = self.screens[hdmi]['pos']
                 proc = await asyncio.create_subprocess_exec('/usr/bin/wlr-randr',
                                                             '--output', screen,
                                                             '--on' if on else '--off',
-                                                            '--transform', '{}'.format('normal' if rot == 0 else rot),
-                                                            #'--pos', '{},{}'.format(*pos)
+                                                            '--transform', self.screens[hdmi].get('tra','normal'),
+                                                            #'--pos', '{},{}'.format(*self.screens[hdmi]get('pos',(0,0)))
                                                             )
                 # Wait for the subprocess exit.
                 await proc.wait()
@@ -820,6 +828,8 @@ async def main():
                      photographer    = args.photographer,
                      caption_hdmi    = args.caption_hdmi,
                      display_hdmi    = args.display_hdmi,
+                     caption_rot     = args.caption_rot,
+                     display_rot     = args.display_rot,
                      theme           = args.theme,
                      serif_font      = args.serif_font,
                      exif            = args.exif,

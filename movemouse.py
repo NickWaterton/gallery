@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-#movemouse for Wayland from https://github.com/asweigart/pyautogui/issues/111
+# movemouse for Wayland from https://github.com/asweigart/pyautogui/issues/111
+# moves the mouse on the screen using zwlr_virtual_pointer_manager_v1 on Wayland devices
+# V 1.0.1 30/5/2025 NW various tweaks
 
 import os
 import socket
@@ -7,13 +9,14 @@ import struct
 import sys
 import argparse, logging
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 def parseargs():
     # Add command line argument parsing
     parser = argparse.ArgumentParser(description='Moouse Clicker for Wayland and X11'.format(__version__))
     parser.add_argument('x', action="store", type=int, default=0, help='x location of mouse click (default: %(default)s))')
     parser.add_argument('-y', action="store", type=int, default=0, help='y location of mouse click (default: %(default)s))')
+    parser.add_argument('-D','--debug', action='store_true', default=False, help='Debug mode (default: %(default)s))')
     return parser.parse_args()
 
 def encode_wayland_string(s: str) -> bytes:
@@ -33,6 +36,11 @@ def encode_wayland_string(s: str) -> bytes:
 
 
 class WaylandClient:
+    
+    interface_names = ["zwlr_virtual_pointer_manager_v1",
+                       "zwlr_virtual_pointer_manager_v2",
+                       "wlr_virtual_pointer_manager"]
+    
     def __init__(self, width=1920, height=1080):
         self.log = logging.getLogger('Main.'+__class__.__name__)
         self.debug = self.log.getEffectiveLevel() <= logging.DEBUG
@@ -41,7 +49,7 @@ class WaylandClient:
         self.endianness = "<" if sys.byteorder == "little" else ">"
 
         self.wl_registry_id = 2  # Arbitrary ID for wl_registry
-        self.callback_id = 3  # Arbitrary ID for wl_callback
+        self.callback_id = 3     # Arbitrary ID for wl_callback
         self.virtual_pointer_manager_id = (
             4  # Arbitrary ID for zwlr_virtual_pointer_manager_v1
         )
@@ -87,6 +95,7 @@ class WaylandClient:
         return object_id, opcode, message_data
 
     def handle_events(self):
+        found = False
         while True:
             object_id, opcode, message_data = self.receive_message()
             if object_id is None or opcode is None or message_data is None:
@@ -118,7 +127,7 @@ class WaylandClient:
                 )
 
                 # When we discover the virtual pointer manager, we bind to it.
-                if interface_name == "zwlr_virtual_pointer_manager_v1":
+                if not found and interface_name in self.interface_names:
                     # Build payload:
                     # 1. Global name (uint32)
                     # 2. Interface name (string with length, content, and padding)
@@ -135,7 +144,8 @@ class WaylandClient:
                     )
                     # Send the bind request (opcode 0 on wl_registry)
                     self.send_message(self.wl_registry_id, 0, payload)
-                    self.log.info("Sent zwlr_virtual_pointer_manager_v1.bind() request...")
+                    self.log.info("Sent {}.bind() request...".format(interface_name))
+                    found = True
 
             # wl_callback.done event (object_id equal to callback_id, opcode 0)
             elif object_id == self.callback_id and opcode == 0:
@@ -153,28 +163,77 @@ class WaylandClient:
         payload = struct.pack(f"{self.endianness}IIIII", 0, x, y, x_extent, y_extent)
         self.send_message(self.virtual_pointer_id, 1, payload)
 
-    def run(self):
+    def init(self):
         self.send_registry_request()
         self.send_sync_request()
         self.handle_events()
         self.create_virtual_pointer()
-        #self.send_motion_absolute(500, 500, 1024, 768) # Requires the width and height of the screen
-        #self.send_motion_absolute(1480, 100, 3400, 320)
-        #self.send_motion_absolute(1480, 0, 1480, 320)
-        #self.send_motion_absolute(0, 0, 1480, 320)
-        
+
     def move_mouse(self, x, y):
         try:
-            self.run()
+            self.init()
             self.send_motion_absolute(x, y, self.width, self.height) # Requires the width and height of the screen
             self.log.info('moved mouse to {}, {}'.format(x, y))
         except Exception as e:
             self.log.warning('{}: failed to set mouse to {}, {}'.format(e, x, y))
+            
+
+def get_connected_screens_size():
+    '''
+    detect attached screens and get the screen size
+    uses wlr-randr
+    '''
+    import subprocess
+    screens = {}
+    sc = None
+    width = height = 0
+    try:
+        result = subprocess.check_output(['/usr/bin/wlr-randr'], text=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Command failed with return code {e.returncode}")
+        return width, height
+    # Read output and process line by line
+    lines = result.split('\n') if result else []
+    for i, line in enumerate(lines):
+        if 'HDMI-A' in line:
+            sc = line.split(' ')[0]
+            hdmi = int(sc.split('-')[-1])
+            screens[hdmi] = {'name':sc}
+            logging.info('found attached screen: {}'.format(line))
+        if 'Enabled:' in line and 'no' in line and sc:
+            logging.warning('{} is off'.format(sc))
+            sc = None
+            continue
+        if 'current' in line and sc:
+            logging.info(line.strip())
+            x, y = line.strip().split(' ')[0].split('x')
+            screens[hdmi]['res'] = (int(x),int(y))
+        if 'Transform:' in line and sc:
+            logging.info(line.strip())
+            tr = line.strip().split(' ')[1]
+            rot = 0 if tr in ['normal', 'flipped'] else int(tr.replace('flipped-',''))
+            #reverse x/y if screen rotated
+            if rot in [90, 270]:
+                screens[hdmi]['res'] = screens[hdmi]['res'][::-1]
+            sc = None
+                
+    for val in screens.values():
+        if val.get('res'):
+            width += val['res'][0]
+            height = max(val['res'][1], height)
+    logging.info('{} screens detected, width: {} height: {}'.format(len(screens), width, height))
+    return width, height 
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     args = parseargs()
-    client = WaylandClient(3400, 800)
-    #client.run()
-    client.move_mouse(args.x, args.y)
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
+    width, height = get_connected_screens_size()
+    if width and height:
+        if 0 <= args.x <= width and 0 <= args.y <= height:
+            client = WaylandClient(width, height)
+            client.move_mouse(args.x, args.y)
+        else:
+            logging.error('x and/or y are outside the screen size')
+    else:
+        logging.error('no screens detected or they are off')

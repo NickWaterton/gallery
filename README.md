@@ -16,11 +16,15 @@ You should prepare a Rasberry Pi 5 or 4B+ with dual HDMI ports.
 
 Other Pi's with single HDMI ports should work as well, in which case the caption display should be connected to HDMI-1.
 
+If you connect your displays in any other configuration (caption on HDMI-2 for example) then things may not work as expected, as Wayland is finicky about this.
+
 ### OS
 
 The reccomended OS is the latest Raspeberry Pi 64 bit OS Full (including UI). You should not use the OS lite.  
 The OS should be set up to connect to WiFi (unless you are using a wired connection) with SSH enabled. 
 **Python 3.10** is required, so do not use earlier versions of Pi OS.
+
+The display system uses the Wayland interface, so do not switch to X11, as the screen control will not work.
 
 ### Software Configuration
 
@@ -36,7 +40,7 @@ Now edit `/boot/firmware/cmdline.txt` (use nano) and add:
 ```
 video=HDMI-A-1:320x1480,rotate=90
 ```
-To the end of the command line. Save and exit. it should look somethig like this:
+To the end of the command line (assuming you are using the reccomended caption display). Save and exit. it should look somethig like this:
 ```
 console=serial0,115200 console=tty1 root=PARTUUID=a6e52f88-02 rootfstype=ext4 fsck.repair=yes rootwait quiet splash plymouth.ignore-serial-consoles cfg80211.ieee80211_regdom=CA video=HDMI-A-1:320x1480,rotate=90
 ```
@@ -63,6 +67,7 @@ Now, cd to the `gallery` folder you just cloned, and use the helper scripts to s
 cd Scripts/gallery
 rotate_screen_90.sh
 ```
+This is optional as the default for the program is to rotate the caption screen 90 degrees - you can override this with the `-car` option (`normal` is 0 rotation).  
 If you only have the one caption display, also hide the cursor:
 ```bash
 hide_cursor.sh
@@ -73,7 +78,7 @@ You can test the screen using the utility script `screen.sh`:
 ./screen.sh off
 ./screen.sh on
 ```
-and the utility `wlr-randr` should display:
+and the utility `wlr-randr` (or just `./screen.sh`) should display (if the screen is off):
 ```
 nick@raspberrypi:~/Scripts $ wlr-randr
 HDMI-A-1 "HOT WaveShsare 0x00000001 (HDMI-A-1)"
@@ -143,10 +148,11 @@ nick@raspberrypi:~/Scripts/gallery $ ./web_interface.py -h
 usage: web_interface.py [-h] [-p PORT] [-f FOLDER] [-m MATTE] [-t TOKEN_FILE] [-u UPDATE] [-c CHECK] [-d DISPLAY_FOR]
                         [-mo {modal-sm,modal-lg,modal-xl,modal-fullscreen,modal-fullscreen-sm-down,modal-fullscreen-md-down,modal-fullscreen-lg-down,modal-fullscreen-xl-down,modal-fullscreen-xxl-down}]
                         [-th {None,cerulian,cosmo,cyborg,darkly,flatly,journal,litera,lumen,lux,materia,minty,morph,pulse,quartz,sandstone,simplex,sketchy,slate,solar,spacelab,suerhero,united,vapour,yeti,zephyr,dark}]
-                        [-ph PHOTOGRAPHER] [-ca CAPTION_HDMI] [-di DISPLAY_HDMI] [-g API_FILE] [-sf] [-s] [-K] [-P] [-A] [-S] [-O] [-F] [-X] [-D]
+                        [-ph PHOTOGRAPHER] [-ca {0,1,2}] [-di {0,1,2}] [-car {normal,flipped,90,180,270,flipped-90,flipped-180,flipped-270}]
+                        [-dir {normal,flipped,90,180,270,flipped-90,flipped-180,flipped-270}] [-g API_FILE] [-sf] [-s] [-K] [-P] [-A] [-S] [-O] [-F] [-X] [-D]
                         ip
 
-Async Art gallery for Samsung Frame TV Version: 2.1.6
+Async Art gallery for Samsung Frame TV Version: 2.1.8
 
 positional arguments:
   ip                    ip address of TV (default: None))
@@ -172,10 +178,14 @@ options:
                         theme to apply to display (default: None))
   -ph PHOTOGRAPHER, --photographer PHOTOGRAPHER
                         default photographer to use (default: Paul Thompsen))
-  -ca CAPTION_HDMI, --caption_hdmi CAPTION_HDMI
+  -ca {0,1,2}, --caption_hdmi {0,1,2}
                         caption display HDMI (0=off, default: 1))
-  -di DISPLAY_HDMI, --display_hdmi DISPLAY_HDMI
+  -di {0,1,2}, --display_hdmi {0,1,2}
                         buttons display HDMI (0=off, default: 0))
+  -car {normal,flipped,90,180,270,flipped-90,flipped-180,flipped-270}, --caption_rot {normal,flipped,90,180,270,flipped-90,flipped-180,flipped-270}
+                        caption display rotation (default: 90))
+  -dir {normal,flipped,90,180,270,flipped-90,flipped-180,flipped-270}, --display_rot {normal,flipped,90,180,270,flipped-90,flipped-180,flipped-270}
+                        buttons display rotation (default: normal))
   -g API_FILE, --api_file API_FILE
                         default google ai api key file to use, or google API_KEY (default: google_ai_api_key.txt))
   -sf, --serif_font     use Serif Font for caption display (default: False))
@@ -213,10 +223,23 @@ It should look like this:
 
 A more typical command line would be:
 ```
-./web_interface.py 192.168.100.32 -u 1 -d 30 -m modal-xl -ph "<your name>" -P -K
+./web_interface.py 192.168.100.32 -u 1 -d 30 -f <path to your folder> -m modal-xl -ph "<your name>" -P -K
 ```
-Which would start the server in `kiosk` mode (modal window displays details of the current image automatically), with the modal window set to extra-large size, and server `production` mode.  
+Which would start the server using the files in `<path to your folder>` (use `"` around the path name if there are spaces in it) in `kiosk` mode (modal window displays details of the current image automatically), with the modal window set to extra-large size, and server `production` mode.  
 **NOTE:** you *do* need the `"` around your name, if you have spaces in the name, ie `"Nick Waterton"`.
+
+### Multiple TV's
+
+The program can be used with multiple TV's. You would need to start one instance of the program for each TV, and only one instance can control the attached screens, the second instance should set `-ca 0` to disable the caption display. You would need to configure a different `--token_file` (deault is `token_file.txt`) and `--port` 9default is `5000`) for the web interface. For example:  
+First TV:  
+```
+./web_interface.py 192.168.100.32 -u 1 -d 30 -f <path to your folder> -m modal-xl -ph "<your name>" -P -K
+```
+Second TV:  
+```
+./web_interface.py 192.168.100.73 -u 1 -d 30 -f <path to your folder> -m modal-xl -ph "<your name>" -P -K -t token_file2.txt -p 5001 -ca 0
+```
+The web interface for TV `192.168.100.32` is on port `5000`, the web interface for TV `192.168.100.73` is on port `5001`. use *your* TV ip addresses, the ones given are just examples.
 
 ### Touch/Mouse Interface
 
@@ -298,6 +321,7 @@ sudo systemctl disable gallery.service
 
 if you edit the file, don't forget to run `sudo systemctl daemon-reload`.
 
+You could create one gallery service for each TV, if you have multiple TV's, ie `gallery.service`, `gallery1.service` etc.
 
 ## Caption Display
 
@@ -321,6 +345,8 @@ When the TV is switched to art Mode, the image updating will resume, and modal w
 You can choose to keep the TV in art mode, by using the `-A` switch. In this case, you can turn the TV off, but if the the TV switches to playing (as it sometimes randomly does from art mode), then it will be switched back to art mode in a few seconds.
 
 If you turn the TV off, then the attached caption and display screens will also turn off. They will turn back on when the TV is turned back on again.
+
+With multiple displays attached, when the screens turn on, the program has to restart the browsers displayed on the screens, so there is a short period when you will see the background image - this does not happen with only a single display connected.
 
 ## Internet
 
