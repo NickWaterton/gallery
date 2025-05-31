@@ -16,7 +16,8 @@ You should prepare a Rasberry Pi 5 or 4B+ with dual HDMI ports.
 
 Other Pi's with single HDMI ports should work as well, in which case the caption display should be connected to HDMI-1.
 
-If you connect your displays in any other configuration (caption on HDMI-2 for example) then things may not work as expected, as Wayland is finicky about this.
+If you connect your displays in any other configuration (caption on HDMI-2 for example) then things may not work as expected, as Wayland is finicky about this.  
+**NOTE:** Getting touch screens to line up properly with thwo displays connected is difficult, you *have* to use the graphical "preferences->screen configuration" utility to set the orientation and positioning of the screens correctly, and may have to switch the touchscreen mode to "multitouch". Configuring the screens is beyond the scope of this program, and I can't help you with that.
 
 ### OS
 
