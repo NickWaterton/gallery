@@ -490,14 +490,18 @@ class WebServer(monitor_and_display):
         screens = {}
         sc = None
         is_on = False
+        found = False
         proc = await asyncio.create_subprocess_exec('/usr/bin/wlr-randr', stdout=asyncio.subprocess.PIPE)
         # Read output and process line by line
         data = await proc.stdout.read()
         lines = data.decode().split('\n') if data else []
         for i, line in enumerate(lines):
             if screen:
-                if screen in line:  #Find HDMI-A-X "HOT WaveShsare 0x00000001 (HDMI-A-X)"
-                    is_on = 'yes' in lines[min(len(lines)-1, i+1)] #check if Enabled: yes
+                if screen in line and not found:  #Find HDMI-A-X "HOT WaveShsare 0x00000001 (HDMI-A-X)"
+                    found = True
+                    continue
+                if found and 'Enabled:' in line:
+                    is_on = 'yes' in line #check if Enabled: yes
                     break
             else:
                 if 'HDMI-A' in line:
